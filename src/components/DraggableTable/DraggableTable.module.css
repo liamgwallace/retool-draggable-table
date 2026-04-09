@@ -151,6 +151,7 @@
   padding: 8px 10px;
   border-top: 1px solid var(--rdt-border);
   background: var(--rdt-surface-2);
+  flex: 0 0 auto;
 }
 
 .loadingOverlay {

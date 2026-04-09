@@ -839,24 +839,24 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         ) : (
           <div className={styles.emptyState}>{emptyMessage}</div>
         )}
-        {addRowPosition === 'bottom' && (
-          <div className={styles.bottomBar}>
-            {saveVisible && <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}><ToolbarIcon kind="save" /></button>}
-            <button className={styles.iconButton} title="Undo changes" aria-label="Undo changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}><ToolbarIcon kind="cancel" /></button>
-            {!disableAddRow && <>
-            <button className={styles.iconButton} title="Insert row top" aria-label="Insert row top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
-              <ToolbarIcon kind="add-top" />
-            </button>
-            <button className={styles.iconButton} title="Insert row bottom" aria-label="Insert row bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
-              <ToolbarIcon kind="add-bottom" />
-            </button>
-            <button className={styles.iconButton} title="Insert below selected" aria-label="Insert below selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
-              <ToolbarIcon kind="add-after" />
-            </button>
-            </>}
-          </div>
-        )}
       </div>
+      {addRowPosition === 'bottom' && (
+        <div className={styles.bottomBar}>
+          {saveVisible && <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}><ToolbarIcon kind="save" /></button>}
+          <button className={styles.iconButton} title="Undo changes" aria-label="Undo changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}><ToolbarIcon kind="cancel" /></button>
+          {!disableAddRow && <>
+          <button className={styles.iconButton} title="Insert row top" aria-label="Insert row top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
+            <ToolbarIcon kind="add-top" />
+          </button>
+          <button className={styles.iconButton} title="Insert row bottom" aria-label="Insert row bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
+            <ToolbarIcon kind="add-bottom" />
+          </button>
+          <button className={styles.iconButton} title="Insert below selected" aria-label="Insert below selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
+            <ToolbarIcon kind="add-after" />
+          </button>
+          </>}
+        </div>
+      )}
       {activeEditor && activeColumn ? (
         <div className={styles.editorLayer}>
           <div ref={editorPopoverRef} className={styles.editorPopover} style={editorStyle} onDoubleClick={(event) => event.stopPropagation()}>
