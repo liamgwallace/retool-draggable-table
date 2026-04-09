@@ -22,9 +22,22 @@ type GroupDragState = {
   insertBefore: boolean;
 } | null;
 type EditorPosition = { left: number; top: number };
-type DragTarget = { key: string | null; before: boolean; groupKey?: string | null; invalid: boolean } | null;
+type DragTarget = { key: string | null; before: boolean; groupKey?: string | null; groupPath?: string[] | null; invalid: boolean } | null;
+type GroupNode = {
+  key: string;
+  label: string;
+  path: string[];
+  rows: RenderRow[];
+  children: GroupNode[];
+  depth: number;
+};
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const groupKeyFromPath = (path: string[]) => path.join('::');
+const groupPathForRow = (row: RowData, fields: string[]) => fields.map((field) => String(row[field] ?? 'Ungrouped'));
+const samePath = (left: string[] | null, right: string[] | null) => Boolean(left && right && left.length === right.length && left.every((value, index) => value === right[index]));
+const countGroupRows = (group: GroupNode): number => group.rows.length + group.children.reduce((sum, child) => sum + countGroupRows(child), 0);
+const flattenGroupRowKeys = (group: GroupNode): string[] => [...group.rows.map((row) => row.__key), ...group.children.flatMap((child) => flattenGroupRowKeys(child))];
 
 const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'json']).has((format ?? 'string').toLowerCase());
 
@@ -71,6 +84,31 @@ const deriveColumns = (rows: RowData[], columns?: TableColumn[], columnOrdering?
   return Object.keys(sample)
     .filter((key) => !key.startsWith('__'))
     .map((key) => ({ sourceKey: key, label: key, format: 'string', editable: true })) as TableColumn[];
+};
+
+const buildGroupedTree = (rows: RenderRow[], groupByColumns: string[], topLevelOrder: string[], depth = 0, parentPath: string[] = []): GroupNode[] => {
+  if (!groupByColumns.length) return [];
+  const field = groupByColumns[depth]!;
+  const groups = new Map<string, RenderRow[]>();
+  rows.forEach((row) => {
+    const value = String(row[field] ?? 'Ungrouped');
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value)!.push(row);
+  });
+  const orderedKeys = (depth === 0 ? [...topLevelOrder, ...groups.keys()] : [...groups.keys()]).filter((value, index, values) => values.indexOf(value) === index);
+  return orderedKeys.map((value) => {
+    const path = [...parentPath, value];
+    const groupRows = groups.get(value) ?? [];
+    const children = depth < groupByColumns.length - 1 ? buildGroupedTree(groupRows, groupByColumns, topLevelOrder, depth + 1, path) : [];
+    return {
+      key: groupKeyFromPath(path),
+      label: value,
+      path,
+      rows: depth === groupByColumns.length - 1 ? groupRows : [],
+      children,
+      depth,
+    };
+  });
 };
 
 export const DraggableTable: React.FC<DraggableTableProps> = ({
@@ -196,16 +234,9 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const orderedRows = useMemo<RenderRow[]>(() => orderedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [orderedKeys, rowsByKey]);
   const groupedRows = useMemo(() => {
     if (!groupByColumns.length) return [{ key: '__all__', label: '', rows: orderedRows }];
-    const field = groupByColumns[0]!;
-    const groups = new Map<string, { key: string; label: string; rows: RenderRow[] }>();
-    orderedRows.forEach((row) => {
-      const value = String(row[field] ?? 'Ungrouped');
-      if (!groups.has(value)) groups.set(value, { key: value, label: value, rows: [] });
-      groups.get(value)!.rows.push(row);
-    });
-    const orderedGroupKeys = [...groupValues, ...groups.keys()].filter((value, index, arr) => arr.indexOf(value) === index);
-    return orderedGroupKeys.map((key) => groups.get(key) ?? { key, label: key, rows: [] });
-  }, [groupByColumns, orderedRows]);
+    const orderedGroupKeys = [...groupValues, ...orderedRows.map((row) => String(row[groupByColumns[0]!] ?? 'Ungrouped'))].filter((value, index, arr) => arr.indexOf(value) === index);
+    return buildGroupedTree(orderedRows, groupByColumns, orderedGroupKeys);
+  }, [groupByColumns, orderedRows, groupValues]);
 
   const reorderChangeset = useMemo(() => buildReorderChangeset(orderedKeys, baselineKeys), [orderedKeys, baselineKeys]);
   const changesetArray = useMemo(() => Object.entries(edits).map(([key, changes]) => ({ key, changes })), [edits]);
@@ -262,14 +293,13 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     dragCleanup.current = null;
   };
 
-  const isInvalidRowDrop = (movingKeys: string[], targetKey: string | null, targetGroupKey?: string | null) => {
+  const isInvalidRowDrop = (movingKeys: string[], targetKey: string | null, targetGroupPath?: string[] | null) => {
     if (!groupByColumns.length) return false;
-    const groupField = groupByColumns[0]!;
     const movingRows = movingKeys.map((key) => rowsByKey[key]).filter(Boolean) as RowData[];
-    const sourceGroups = new Set(movingRows.map((row) => String(row[groupField] ?? 'Ungrouped')));
-    const nextGroup = targetGroupKey ?? (targetKey ? String(rowsByKey[targetKey]?.[groupField] ?? 'Ungrouped') : null);
+    const sourceGroups = new Set(movingRows.map((row) => groupKeyFromPath(groupPathForRow(row, groupByColumns))));
+    const nextGroup = targetGroupPath ?? (targetKey ? groupPathForRow(rowsByKey[targetKey] ?? {}, groupByColumns) : null);
     if (allowCrossGroupDrag) return false;
-    return sourceGroups.size > 1 || (nextGroup !== null && !sourceGroups.has(nextGroup));
+    return sourceGroups.size > 1 || (nextGroup !== null && !sourceGroups.has(groupKeyFromPath(nextGroup)));
   };
 
   useEffect(() => () => clearDragListeners(), []);
@@ -306,9 +336,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         const emptyGroupEl = pointerTarget?.closest?.('[data-group-drop-zone]') as HTMLElement | null;
         const targetKey = targetEl?.dataset.rowKey ?? null;
         const targetGroupKey = emptyGroupEl?.dataset.groupDropZone ?? null;
+        const targetGroupPath = emptyGroupEl?.dataset.groupPath ? JSON.parse(emptyGroupEl.dataset.groupPath) as string[] : (targetKey ? groupPathForRow(rowsByKey[targetKey] ?? {}, groupByColumns) : null);
         const insertBefore = targetEl ? moveEvent.clientY < targetEl.getBoundingClientRect().top + targetEl.getBoundingClientRect().height / 2 : true;
-        const invalid = isInvalidRowDrop(movingKeys, targetKey, targetGroupKey);
-        dropSnapshot = targetKey || targetGroupKey ? { key: targetKey, before: insertBefore, groupKey: targetGroupKey, invalid } : null;
+        const invalid = isInvalidRowDrop(movingKeys, targetKey, targetGroupPath);
+        dropSnapshot = targetKey || targetGroupKey ? { key: targetKey, before: insertBefore, groupKey: targetGroupKey, groupPath: targetGroupPath, invalid } : null;
         setDropTarget(dropSnapshot);
         return { ...current, active, targetKey, insertBefore };
       });
@@ -340,17 +371,20 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         const nextOrder = current.targetKey ? moveKeys(orderedKeys, movingKeys, current.targetKey, current.insertBefore) : [...orderedKeys.filter((key) => !movingKeys.includes(key)), ...movingKeys];
         setOrderedKeys(nextOrder);
         if (groupByColumns.length && allowCrossGroupDrag) {
-          const groupField = groupByColumns[0]!;
-          const targetGroupValue = dropSnapshot?.groupKey ?? targetRow?.[groupField];
+          const targetPath = dropSnapshot?.groupPath ?? (targetRow ? groupPathForRow(targetRow, groupByColumns) : null);
           setRowsByKey((currentRows) => {
             const copy = { ...currentRows };
             movingKeys.forEach((key) => {
-              copy[key] = { ...copy[key], [groupField]: targetGroupValue };
+              const updated = { ...copy[key] };
+              groupByColumns.forEach((field, index) => {
+                updated[field] = targetPath?.[index] ?? 'Ungrouped';
+              });
+              copy[key] = updated;
             });
             return copy;
           });
-          if (targetGroupValue != null) {
-            setGroupValues((current) => current.includes(String(targetGroupValue)) ? current : [...current, String(targetGroupValue)]);
+          if (targetPath?.[0] != null) {
+            setGroupValues((current) => current.includes(String(targetPath[0])) ? current : [...current, String(targetPath[0])]);
           }
         }
         const nextModel = { ...model, orderedRowKeys: nextOrder, reorderChangeset: buildReorderChangeset(nextOrder, baselineKeys) };
@@ -391,9 +425,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
       clearDragListeners();
       setGroupDragState((current) => {
         if (!current?.active || !current.targetKey || current.targetKey === current.key) return null;
-        const reorderedGroups = moveKeys(groupValues.length ? groupValues : groupedRows.map((group) => group.key), [current.key], current.targetKey!, current.insertBefore);
-        setGroupValues(reorderedGroups);
-        const nextOrder = reorderedGroups.flatMap((value) => orderedRows.filter((row) => String(row[groupByColumns[0]!] ?? 'Ungrouped') === value).map((row) => row.__key));
+        const topLevelGroups = groupedRows as GroupNode[];
+        const reorderedGroups = moveKeys(topLevelGroups.map((group) => group.key), [current.key], current.targetKey!, current.insertBefore);
+        const reorderedTopValues = reorderedGroups.map((key) => topLevelGroups.find((group) => group.key === key)?.path[0] ?? key);
+        setGroupValues(reorderedTopValues);
+        const nextOrder = reorderedGroups.flatMap((key) => flattenGroupRowKeys(topLevelGroups.find((group) => group.key === key) as GroupNode));
         setOrderedKeys(nextOrder);
         return null;
       });
@@ -532,9 +568,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     const blank: RowData = {};
     visibleColumns.forEach((column) => { blank[column.sourceKey] = column.format === 'multiple tags' ? [] : ''; });
     if (groupByColumns.length) {
-      const field = groupByColumns[0]!;
-      const activeGroup = selectedKeys.length === 1 ? String(rowsByKey[selectedKeys[0]!]?.[field] ?? '') : groupValues[0] ?? 'Ungrouped';
-      blank[field] = activeGroup;
+      const selectedGroupPath = selectedKeys.length === 1 ? groupPathForRow(rowsByKey[selectedKeys[0]!] ?? {}, groupByColumns) : null;
+      groupByColumns.forEach((field, index) => {
+        blank[field] = selectedGroupPath?.[index] ?? (index === 0 ? groupValues[0] ?? 'Ungrouped' : 'Ungrouped');
+      });
     }
     const key = `new_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const rowsCopy = { ...rowsByKey, [key]: blank };
@@ -617,6 +654,61 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     ...themeStyles,
   } as React.CSSProperties;
 
+  const totalColumnCount = visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0);
+
+  const renderRow = (row: RenderRow) => {
+    const rowKey = row.__key as string;
+    const isSelected = selectedKeys.includes(rowKey);
+    const isNew = newRows.includes(rowsByKey[rowKey]);
+    const isDirtyRow = isNew || Boolean(edits[rowKey]);
+    const isDropBefore = dropTarget?.key === rowKey && dropTarget.before;
+    const isDropAfter = dropTarget?.key === rowKey && !dropTarget.before;
+    const isInvalidDrop = dropTarget?.key === rowKey && dropTarget.invalid;
+    return (
+      <tr key={rowKey} data-row-key={rowKey} className={`${isSelected ? styles.selectedRow : ''} ${isDirtyRow ? styles.dirtyRow : ''} ${dragState?.rowKey === rowKey ? styles.draggingRow : ''} ${isDropBefore ? styles.dropBefore : ''} ${isDropAfter ? styles.dropAfter : ''} ${isInvalidDrop ? styles.invalidDrop : ''}`} onClick={(event) => { onRowClick?.(rowKey, row); toggleSelection(rowKey, event.metaKey || event.ctrlKey || event.shiftKey); }} onDoubleClick={() => onDoubleClickRow?.(rowKey, row)}>
+        <td className={styles.handleCell}>
+          <button className={styles.handleButton} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
+        </td>
+        {multiSelectEnabled && <td className={styles.checkboxCell}><label className={styles.checkboxWrap}><input type="checkbox" checked={isSelected} onChange={() => toggleSelection(rowKey, true)} onClick={(event) => event.stopPropagation()} /><span className={styles.checkboxUi} aria-hidden="true" /></label></td>}
+        <td className={styles.indexCell}>{orderedKeys.indexOf(rowKey)}</td>
+        {visibleColumns.map((column) => {
+          const value = row[column.sourceKey];
+          const text = formatCellText(value, column);
+          const editableCell = editable && !disableEdits && column.editable !== false && isEditableFormat(column.format) && !loading && !internalLoading && !column.hidden;
+          return (
+            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell && (column.format ?? 'string').toLowerCase() !== 'boolean') openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
+              <div className={styles.cellInner}>
+                <CellRenderer column={column} value={value} row={row} text={text} editable={editableCell} onToggleBoolean={() => commitEdit(rowKey, column.sourceKey, String(!Boolean(value)))} />
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const renderGroupNode = (group: GroupNode): React.ReactNode => (
+    <React.Fragment key={group.key}>
+      <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.depth === 0 ? group.key : undefined}>
+        <td colSpan={totalColumnCount}>
+          <div className={styles.groupChipWrap} style={{ paddingLeft: `${group.depth * 16}px` }}>
+            {allowGroupReorder && group.depth === 0 ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.label}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : <span className={styles.groupSpacer} aria-hidden="true" />}
+            <div className={styles.groupChip}>{group.label}<span>{countGroupRows(group)}</span></div>
+          </div>
+        </td>
+      </tr>
+      {!group.children.length && !group.rows.length ? (
+        <tr>
+          <td colSpan={totalColumnCount}>
+            <div data-group-drop-zone={group.key} data-group-path={JSON.stringify(group.path)} className={`${styles.emptyGroupDropZone} ${samePath(dropTarget?.groupPath ?? null, group.path) ? (dropTarget?.invalid ? styles.invalidDropZone : styles.activeDropZone) : ''}`} style={{ marginLeft: `${group.depth * 16}px` }}>Drop rows into {group.path.join(' / ')}</div>
+          </td>
+        </tr>
+      ) : null}
+      {group.children.map((child) => renderGroupNode(child))}
+      {group.rows.map((row) => renderRow(row))}
+    </React.Fragment>
+  );
+
   return (
     <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={0} onFocus={onFocus} onBlur={onBlur}>
       <div className={styles.headerBar}>
@@ -671,57 +763,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               </tr>
             </thead> : null}
             <tbody>
-              {groupedRows.map((group) => (
-                <React.Fragment key={group.key}>
-                  {group.label && (
-                    <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.key}>
-                      <td colSpan={visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0)}>
-                        <div className={styles.groupChipWrap}>
-                          {allowGroupReorder ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.label}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : null}
-                          <div className={styles.groupChip}>{group.label}<span>{group.rows.length}</span></div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {group.label && group.rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0)}>
-                        <div data-group-drop-zone={group.key} className={`${styles.emptyGroupDropZone} ${dropTarget?.groupKey === group.key ? (dropTarget.invalid ? styles.invalidDropZone : styles.activeDropZone) : ''}`}>Drop rows into {group.label}</div>
-                      </td>
-                    </tr>
-                  ) : null}
-                  {group.rows.map((row, displayIndex) => {
-                    const rowKey = row.__key as string;
-                    const isSelected = selectedKeys.includes(rowKey);
-                    const isNew = newRows.includes(rowsByKey[rowKey]);
-                    const isDirtyRow = isNew || Boolean(edits[rowKey]);
-                    const isDropBefore = dropTarget?.key === rowKey && dropTarget.before;
-                    const isDropAfter = dropTarget?.key === rowKey && !dropTarget.before;
-                    const isInvalidDrop = dropTarget?.key === rowKey && dropTarget.invalid;
-                    return (
-                      <tr key={rowKey} data-row-key={rowKey} className={`${isSelected ? styles.selectedRow : ''} ${isDirtyRow ? styles.dirtyRow : ''} ${dragState?.rowKey === rowKey ? styles.draggingRow : ''} ${isDropBefore ? styles.dropBefore : ''} ${isDropAfter ? styles.dropAfter : ''} ${isInvalidDrop ? styles.invalidDrop : ''}`} onClick={(event) => { onRowClick?.(rowKey, row); toggleSelection(rowKey, event.metaKey || event.ctrlKey || event.shiftKey); }} onDoubleClick={() => onDoubleClickRow?.(rowKey, row)}>
-                        <td className={styles.handleCell}>
-                          <button className={styles.handleButton} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
-                        </td>
-                        {multiSelectEnabled && <td className={styles.checkboxCell}><label className={styles.checkboxWrap}><input type="checkbox" checked={isSelected} onChange={() => toggleSelection(rowKey, true)} onClick={(event) => event.stopPropagation()} /><span className={styles.checkboxUi} aria-hidden="true" /></label></td>}
-                        <td className={styles.indexCell}>{displayIndex}</td>
-                        {visibleColumns.map((column) => {
-                          const value = row[column.sourceKey];
-                          const text = formatCellText(value, column);
-                          const editableCell = editable && !disableEdits && column.editable !== false && isEditableFormat(column.format) && !loading && !internalLoading && !column.hidden;
-                          return (
-                            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell && (column.format ?? 'string').toLowerCase() !== 'boolean') openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
-                              <div className={styles.cellInner}>
-                                <CellRenderer column={column} value={value} row={row} text={text} editable={editableCell} onToggleBoolean={() => commitEdit(rowKey, column.sourceKey, String(!Boolean(value)))} />
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+              {groupByColumns.length ? groupedRows.map((group) => renderGroupNode(group as GroupNode)) : orderedRows.map((row) => renderRow(row))}
             </tbody>
           </table>
         ) : (

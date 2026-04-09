@@ -259,6 +259,12 @@
   gap: 6px;
 }
 
+.groupSpacer {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+}
+
 .groupChip {
   display: inline-flex;
   align-items: center;
