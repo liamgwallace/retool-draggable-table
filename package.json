@@ -16,6 +16,7 @@
     "retool:deploy": "npx retool-ccl deploy"
   },
   "dependencies": {
+    "@tabler/icons-react": "^3.41.1",
     "@tryretool/custom-component-support": "latest",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

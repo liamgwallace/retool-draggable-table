@@ -492,7 +492,7 @@
           "initialValue": {},
           "inspector": "text",
           "label": "Theme",
-          "description": "Optional Retool theme token object. Usually leave this bound to the built-in theme data.",
+          "description": "Optional Retool theme token object. Normally bind this to `{{ theme }}`.",
           "type": "object"
         },
         {

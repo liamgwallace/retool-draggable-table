@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { IconArrowBackUp, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
 import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, moveKeys } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
@@ -20,6 +21,7 @@ type GroupDragState = {
   active: boolean;
   targetKey: string | null;
   insertBefore: boolean;
+  invalid: boolean;
 } | null;
 type EditorPosition = { left: number; top: number };
 type DragTarget = { key: string | null; before: boolean; groupKey?: string | null; groupPath?: string[] | null; invalid: boolean } | null;
@@ -31,13 +33,42 @@ type GroupNode = {
   children: GroupNode[];
   depth: number;
 };
+type GroupOrderMap = Record<string, string[]>;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const ROOT_GROUP_KEY = '__root__';
 const groupKeyFromPath = (path: string[]) => path.join('::');
 const groupPathForRow = (row: RowData, fields: string[]) => fields.map((field) => String(row[field] ?? 'Ungrouped'));
+const parentGroupKeyFromPath = (path: string[]) => path.length ? groupKeyFromPath(path) : ROOT_GROUP_KEY;
 const samePath = (left: string[] | null, right: string[] | null) => Boolean(left && right && left.length === right.length && left.every((value, index) => value === right[index]));
 const countGroupRows = (group: GroupNode): number => group.rows.length + group.children.reduce((sum, child) => sum + countGroupRows(child), 0);
 const flattenGroupRowKeys = (group: GroupNode): string[] => [...group.rows.map((row) => row.__key), ...group.children.flatMap((child) => flattenGroupRowKeys(child))];
+const flattenGroups = (groups: GroupNode[]): GroupNode[] => groups.flatMap((group) => [group, ...flattenGroups(group.children)]);
+const flattenGroupedRowKeys = (groups: GroupNode[]): string[] => groups.flatMap((group) => flattenGroupRowKeys(group));
+const mergeGroupOrdersFromRows = (current: GroupOrderMap, rows: RowData[], groupByColumns: string[]): GroupOrderMap => {
+  if (!groupByColumns.length) return {};
+  const next = { ...current };
+  rows.forEach((row) => {
+    const path: string[] = [];
+    groupByColumns.forEach((field) => {
+      const value = String(row[field] ?? 'Ungrouped');
+      const parentKey = parentGroupKeyFromPath(path);
+      const existing = next[parentKey] ?? [];
+      if (!existing.includes(value)) next[parentKey] = [...existing, value];
+      path.push(value);
+    });
+  });
+  return next;
+};
+
+const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabel: string, insertBefore: boolean) => {
+  const remaining = orderedLabels.filter((label) => label !== movingLabel);
+  let targetIndex = remaining.indexOf(targetLabel);
+  if (targetIndex < 0) targetIndex = remaining.length;
+  if (!insertBefore) targetIndex += 1;
+  remaining.splice(targetIndex, 0, movingLabel);
+  return remaining;
+};
 
 const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'json']).has((format ?? 'string').toLowerCase());
 
@@ -51,11 +82,12 @@ const estimateColumnWidth = (rows: RowData[], column: TableColumn) => {
 };
 
 const ToolbarIcon = ({ kind }: { kind: 'save' | 'cancel' | 'add-top' | 'add-bottom' | 'add-after' }) => {
-  if (kind === 'save') return <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 2.5h7l3 3V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.5Zm2 0V6h5V2.5H5Z" fill="currentColor"/><path d="M5 9.5h6" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>;
-  if (kind === 'cancel') return <span aria-hidden="true">×</span>;
-  if (kind === 'add-top') return <span aria-hidden="true">⇡+</span>;
-  if (kind === 'add-bottom') return <span aria-hidden="true">⇣+</span>;
-  return <span aria-hidden="true">+↘</span>;
+  const props = { 'aria-hidden': true, size: 16, stroke: 1.8 } as const;
+  if (kind === 'save') return <IconDeviceFloppy {...props} />;
+  if (kind === 'cancel') return <IconArrowBackUp {...props} />;
+  if (kind === 'add-top') return <IconRowInsertTop {...props} />;
+  if (kind === 'add-bottom') return <IconRowInsertBottom {...props} />;
+  return <IconRowInsertBottom {...props} />;
 };
 
 const inputValueFor = (value: unknown, column: TableColumn) => {
@@ -86,7 +118,7 @@ const deriveColumns = (rows: RowData[], columns?: TableColumn[], columnOrdering?
     .map((key) => ({ sourceKey: key, label: key, format: 'string', editable: true })) as TableColumn[];
 };
 
-const buildGroupedTree = (rows: RenderRow[], groupByColumns: string[], topLevelOrder: string[], depth = 0, parentPath: string[] = []): GroupNode[] => {
+const buildGroupedTree = (rows: RenderRow[], groupByColumns: string[], groupOrders: GroupOrderMap, depth = 0, parentPath: string[] = []): GroupNode[] => {
   if (!groupByColumns.length) return [];
   const field = groupByColumns[depth]!;
   const groups = new Map<string, RenderRow[]>();
@@ -95,11 +127,12 @@ const buildGroupedTree = (rows: RenderRow[], groupByColumns: string[], topLevelO
     if (!groups.has(value)) groups.set(value, []);
     groups.get(value)!.push(row);
   });
-  const orderedKeys = (depth === 0 ? [...topLevelOrder, ...groups.keys()] : [...groups.keys()]).filter((value, index, values) => values.indexOf(value) === index);
+  const parentKey = parentGroupKeyFromPath(parentPath);
+  const orderedKeys = [...(groupOrders[parentKey] ?? []), ...groups.keys()].filter((value, index, values) => values.indexOf(value) === index);
   return orderedKeys.map((value) => {
     const path = [...parentPath, value];
     const groupRows = groups.get(value) ?? [];
-    const children = depth < groupByColumns.length - 1 ? buildGroupedTree(groupRows, groupByColumns, topLevelOrder, depth + 1, path) : [];
+    const children = depth < groupByColumns.length - 1 ? buildGroupedTree(groupRows, groupByColumns, groupOrders, depth + 1, path) : [];
     return {
       key: groupKeyFromPath(path),
       label: value,
@@ -165,7 +198,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const [edits, setEdits] = useState<Record<string, Partial<RowData>>>({});
   const [newRows, setNewRows] = useState<RowData[]>([]);
   const [baselineKeys, setBaselineKeys] = useState<string[]>(orderedKeys);
-  const [groupValues, setGroupValues] = useState<string[]>([]);
+  const [groupOrders, setGroupOrders] = useState<GroupOrderMap>({});
   const [dragState, setDragState] = useState<DragState>(null);
   const [groupDragState, setGroupDragState] = useState<GroupDragState>(null);
   const [dropTarget, setDropTarget] = useState<DragTarget>(null);
@@ -203,22 +236,20 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   useEffect(() => {
     if (!groupByColumns.length) {
-      setGroupValues([]);
+      setGroupOrders({});
       return;
     }
-    const field = groupByColumns[0]!;
-    const valuesFromRows = initialRows.map((row) => String(row[field] ?? 'Ungrouped'));
-    setGroupValues((current) => {
-      const merged = [...current];
-      valuesFromRows.forEach((value) => {
-        if (!merged.includes(value)) merged.push(value);
-      });
-      return merged.length ? merged : valuesFromRows;
-    });
+    setGroupOrders((current) => mergeGroupOrdersFromRows(current, initialRows, groupByColumns));
   }, [groupByColumns, initialRows]);
+
+  useEffect(() => {
+    if (!groupByColumns.length) return;
+    setGroupOrders((current) => mergeGroupOrdersFromRows(current, Object.values(rowsByKey), groupByColumns));
+  }, [groupByColumns, rowsByKey]);
 
   const allColumns = useMemo(() => deriveColumns(Object.values(rowsByKey), columns, columnOrdering), [rowsByKey, columns, columnOrdering]);
   const visibleColumns = useMemo(() => allColumns.filter((column) => !column.hidden), [allColumns]);
+  const initialGroupOrders = useMemo(() => mergeGroupOrdersFromRows({}, initialRows, groupByColumns), [groupByColumns, initialRows]);
 
   useEffect(() => {
     setColumnWidths((current) => {
@@ -232,11 +263,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   }, [allColumns, rowsByKey]);
 
   const orderedRows = useMemo<RenderRow[]>(() => orderedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [orderedKeys, rowsByKey]);
-  const groupedRows = useMemo(() => {
-    if (!groupByColumns.length) return [{ key: '__all__', label: '', rows: orderedRows }];
-    const orderedGroupKeys = [...groupValues, ...orderedRows.map((row) => String(row[groupByColumns[0]!] ?? 'Ungrouped'))].filter((value, index, arr) => arr.indexOf(value) === index);
-    return buildGroupedTree(orderedRows, groupByColumns, orderedGroupKeys);
-  }, [groupByColumns, orderedRows, groupValues]);
+  const groupedRows = useMemo<GroupNode[]>(() => {
+    if (!groupByColumns.length) return [];
+    return buildGroupedTree(orderedRows, groupByColumns, groupOrders);
+  }, [groupByColumns, orderedRows, groupOrders]);
+  const groupsByKey = useMemo(() => new Map(flattenGroups(groupedRows).map((group) => [group.key, group])), [groupedRows]);
 
   const reorderChangeset = useMemo(() => buildReorderChangeset(orderedKeys, baselineKeys), [orderedKeys, baselineKeys]);
   const changesetArray = useMemo(() => Object.entries(edits).map(([key, changes]) => ({ key, changes })), [edits]);
@@ -383,8 +414,8 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
             });
             return copy;
           });
-          if (targetPath?.[0] != null) {
-            setGroupValues((current) => current.includes(String(targetPath[0])) ? current : [...current, String(targetPath[0])]);
+          if (targetPath) {
+            setGroupOrders((current) => mergeGroupOrdersFromRows(current, [Object.fromEntries(groupByColumns.map((field, index) => [field, targetPath[index] ?? 'Ungrouped']))], groupByColumns));
           }
         }
         const nextModel = { ...model, orderedRowKeys: nextOrder, reorderChangeset: buildReorderChangeset(nextOrder, baselineKeys) };
@@ -405,9 +436,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   const startGroupDrag = (groupKey: string, event: React.PointerEvent) => {
     if (!allowGroupReorder || loading || internalLoading || !groupByColumns.length) return;
+    const sourceGroup = groupsByKey.get(groupKey);
+    if (!sourceGroup) return;
     event.preventDefault();
     event.stopPropagation();
-    setGroupDragState({ key: groupKey, startY: event.clientY, active: false, targetKey: null, insertBefore: true });
+    setGroupDragState({ key: groupKey, startY: event.clientY, active: false, targetKey: null, insertBefore: true, invalid: false });
 
     const onMove = (moveEvent: PointerEvent) => {
       setGroupDragState((current) => {
@@ -416,20 +449,57 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         const active = current.active || dy > 4;
         const targetEl = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.('[data-group-key]') as HTMLElement | null;
         const targetKey = targetEl?.dataset.groupKey ?? null;
+        const targetGroup = targetKey ? groupsByKey.get(targetKey) : null;
         const insertBefore = targetEl ? moveEvent.clientY < targetEl.getBoundingClientRect().top + targetEl.getBoundingClientRect().height / 2 : true;
-        return { ...current, active, targetKey, insertBefore };
+        const invalid = Boolean(targetGroup && (targetGroup.depth !== sourceGroup.depth || (!allowCrossGroupDrag && !samePath(sourceGroup.path.slice(0, -1), targetGroup.path.slice(0, -1)))));
+        return { ...current, active, targetKey, insertBefore, invalid };
       });
     };
 
     const finishDrag = () => {
       clearDragListeners();
       setGroupDragState((current) => {
-        if (!current?.active || !current.targetKey || current.targetKey === current.key) return null;
-        const topLevelGroups = groupedRows as GroupNode[];
-        const reorderedGroups = moveKeys(topLevelGroups.map((group) => group.key), [current.key], current.targetKey!, current.insertBefore);
-        const reorderedTopValues = reorderedGroups.map((key) => topLevelGroups.find((group) => group.key === key)?.path[0] ?? key);
-        setGroupValues(reorderedTopValues);
-        const nextOrder = reorderedGroups.flatMap((key) => flattenGroupRowKeys(topLevelGroups.find((group) => group.key === key) as GroupNode));
+        if (!current?.active || !current.targetKey || current.targetKey === current.key || current.invalid) return null;
+        const latestSource = groupsByKey.get(current.key);
+        const latestTarget = groupsByKey.get(current.targetKey);
+        if (!latestSource || !latestTarget || latestSource.depth !== latestTarget.depth) return null;
+
+        const sourceParentPath = latestSource.path.slice(0, -1);
+        const targetParentPath = latestTarget.path.slice(0, -1);
+        const sourceParentKey = parentGroupKeyFromPath(sourceParentPath);
+        const targetParentKey = parentGroupKeyFromPath(targetParentPath);
+        const movingRowKeys = flattenGroupRowKeys(latestSource);
+        const siblingOrder = groupOrders[targetParentKey] ?? [];
+        const nextTargetOrder = moveGroupLabel(siblingOrder, latestSource.label, latestTarget.label, current.insertBefore);
+        const nextGroupOrders: GroupOrderMap = { ...groupOrders, [targetParentKey]: nextTargetOrder };
+
+        if (!samePath(sourceParentPath, targetParentPath) && movingRowKeys.length) {
+          setRowsByKey((currentRows) => {
+            const copy = { ...currentRows };
+            movingRowKeys.forEach((rowKey) => {
+              const updated = { ...copy[rowKey] };
+              targetParentPath.forEach((value, index) => {
+                updated[groupByColumns[index]!] = value;
+              });
+              copy[rowKey] = updated;
+            });
+            return copy;
+          });
+        }
+
+        setGroupOrders(nextGroupOrders);
+        const nextRowsByKey = !samePath(sourceParentPath, targetParentPath) && movingRowKeys.length
+          ? Object.fromEntries(Object.entries(rowsByKey).map(([rowKey, row]) => {
+            if (!movingRowKeys.includes(rowKey)) return [rowKey, row];
+            const updated = { ...row };
+            targetParentPath.forEach((value, index) => {
+              updated[groupByColumns[index]!] = value;
+            });
+            return [rowKey, updated];
+          })) as Record<string, RowData>
+          : rowsByKey;
+        const nextOrderedRows = orderedKeys.map((key) => ({ __key: key, ...(nextRowsByKey[key] ?? {}) }));
+        const nextOrder = flattenGroupedRowKeys(buildGroupedTree(nextOrderedRows, groupByColumns, nextGroupOrders));
         setOrderedKeys(nextOrder);
         return null;
       });
@@ -515,10 +585,9 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setEditorSelections([]);
   };
 
-  const commitAndCloseArrayEditor = (nextValue: string[]) => {
+  const commitArrayEditor = (nextValue: string[]) => {
     if (!activeEditor) return;
     updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, nextValue);
-    closeEditor();
   };
 
   const startResize = (columnKey: string, event: React.PointerEvent) => {
@@ -598,6 +667,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const clearChanges = () => {
     setRowsByKey(Object.fromEntries(initialRows.map((row, index) => [createRowKey(row, primaryKey, indexColumn, index), { ...row }])));
     setOrderedKeys(initialRows.map((row, index) => createRowKey(row, primaryKey, indexColumn, index)));
+    setGroupOrders(initialGroupOrders);
     setSelectedKeys([]);
     setSelectedCell(null);
     setEdits({});
@@ -656,7 +726,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   const totalColumnCount = visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0);
 
-  const renderRow = (row: RenderRow) => {
+  const renderRow = (row: RenderRow, indentLevel = 0) => {
     const rowKey = row.__key as string;
     const isSelected = selectedKeys.includes(rowKey);
     const isNew = newRows.includes(rowsByKey[rowKey]);
@@ -667,7 +737,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     return (
       <tr key={rowKey} data-row-key={rowKey} className={`${isSelected ? styles.selectedRow : ''} ${isDirtyRow ? styles.dirtyRow : ''} ${dragState?.rowKey === rowKey ? styles.draggingRow : ''} ${isDropBefore ? styles.dropBefore : ''} ${isDropAfter ? styles.dropAfter : ''} ${isInvalidDrop ? styles.invalidDrop : ''}`} onClick={(event) => { onRowClick?.(rowKey, row); toggleSelection(rowKey, event.metaKey || event.ctrlKey || event.shiftKey); }} onDoubleClick={() => onDoubleClickRow?.(rowKey, row)}>
         <td className={styles.handleCell}>
-          <button className={styles.handleButton} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
+          <button className={styles.handleButton} style={{ marginLeft: `${indentLevel * 16}px` }} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
         </td>
         {multiSelectEnabled && <td className={styles.checkboxCell}><label className={styles.checkboxWrap}><input type="checkbox" checked={isSelected} onChange={() => toggleSelection(rowKey, true)} onClick={(event) => event.stopPropagation()} /><span className={styles.checkboxUi} aria-hidden="true" /></label></td>}
         <td className={styles.indexCell}>{orderedKeys.indexOf(rowKey)}</td>
@@ -689,10 +759,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   const renderGroupNode = (group: GroupNode): React.ReactNode => (
     <React.Fragment key={group.key}>
-      <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.depth === 0 ? group.key : undefined}>
+      <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.invalid ? styles.invalidDrop : groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.key}>
         <td colSpan={totalColumnCount}>
           <div className={styles.groupChipWrap} style={{ paddingLeft: `${group.depth * 16}px` }}>
-            {allowGroupReorder && group.depth === 0 ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.label}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : <span className={styles.groupSpacer} aria-hidden="true" />}
+            {allowGroupReorder ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.path.join(' / ')}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : <span className={styles.groupSpacer} aria-hidden="true" />}
             <div className={styles.groupChip}>{group.label}<span>{countGroupRows(group)}</span></div>
           </div>
         </td>
@@ -705,7 +775,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         </tr>
       ) : null}
       {group.children.map((child) => renderGroupNode(child))}
-      {group.rows.map((row) => renderRow(row))}
+      {group.rows.map((row) => renderRow(row, group.depth + 1))}
     </React.Fragment>
   );
 
@@ -723,18 +793,18 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               <ToolbarIcon kind="save" />
             </button>
           )}
-          <button className={styles.iconButton} title="Cancel" aria-label="Cancel" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}>
+          <button className={styles.iconButton} title="Undo changes" aria-label="Undo changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}>
             <ToolbarIcon kind="cancel" />
           </button>
           {addRowPosition === 'top' && !disableAddRow && (
             <>
-              <button className={styles.iconButton} title="Add top" aria-label="Add top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
+              <button className={styles.iconButton} title="Insert row top" aria-label="Insert row top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
                 <ToolbarIcon kind="add-top" />
               </button>
-              <button className={styles.iconButton} title="Add bottom" aria-label="Add bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
+              <button className={styles.iconButton} title="Insert row bottom" aria-label="Insert row bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
                 <ToolbarIcon kind="add-bottom" />
               </button>
-              <button className={styles.iconButton} title="Add after selected" aria-label="Add after selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
+              <button className={styles.iconButton} title="Insert below selected" aria-label="Insert below selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
                 <ToolbarIcon kind="add-after" />
               </button>
             </>
@@ -763,7 +833,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               </tr>
             </thead> : null}
             <tbody>
-              {groupByColumns.length ? groupedRows.map((group) => renderGroupNode(group as GroupNode)) : orderedRows.map((row) => renderRow(row))}
+              {groupByColumns.length ? groupedRows.map((group) => renderGroupNode(group)) : orderedRows.map((row) => renderRow(row))}
             </tbody>
           </table>
         ) : (
@@ -772,15 +842,15 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
         {addRowPosition === 'bottom' && (
           <div className={styles.bottomBar}>
             {saveVisible && <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}><ToolbarIcon kind="save" /></button>}
-            <button className={styles.iconButton} title="Cancel changes" aria-label="Cancel changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}><ToolbarIcon kind="cancel" /></button>
+            <button className={styles.iconButton} title="Undo changes" aria-label="Undo changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}><ToolbarIcon kind="cancel" /></button>
             {!disableAddRow && <>
-            <button className={styles.iconButton} title="Add top" aria-label="Add top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
+            <button className={styles.iconButton} title="Insert row top" aria-label="Insert row top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
               <ToolbarIcon kind="add-top" />
             </button>
-            <button className={styles.iconButton} title="Add bottom" aria-label="Add bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
+            <button className={styles.iconButton} title="Insert row bottom" aria-label="Insert row bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
               <ToolbarIcon kind="add-bottom" />
             </button>
-            <button className={styles.iconButton} title="Add after selected" aria-label="Add after selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
+            <button className={styles.iconButton} title="Insert below selected" aria-label="Insert below selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
               <ToolbarIcon kind="add-after" />
             </button>
             </>}
@@ -802,7 +872,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               onChangeMultiText={setEditorMultiText}
               onChangeSelections={setEditorSelections}
               onCommitText={(next) => { commitEdit(activeEditor.rowKey, activeEditor.columnKey, next); closeEditor(); }}
-              onCommitArray={commitAndCloseArrayEditor}
+              onCommitArray={commitArrayEditor}
               onClose={closeEditor}
             />
           </div>

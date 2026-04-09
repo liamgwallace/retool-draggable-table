@@ -112,6 +112,12 @@
   cursor: pointer;
 }
 
+.iconButton svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
 .button:hover,
 .iconButton:hover {
   border-color: #c0cad8;
