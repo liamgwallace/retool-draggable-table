@@ -19,7 +19,7 @@
   gap: 16px;
   align-items: center;
   padding: 8px 10px;
-  background: var(--rdt-surface-2);
+  background: color-mix(in srgb, var(--rdt-surface-2) 82%, var(--rdt-canvas) 18%);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--rdt-border);
 }
@@ -49,7 +49,7 @@
 }
 
 .headerMeta {
-  background: var(--rdt-surface);
+  background: color-mix(in srgb, var(--rdt-surface) 92%, var(--rdt-canvas) 8%);
   color: var(--rdt-text-soft);
   border: 1px solid var(--rdt-border);
 }
@@ -193,7 +193,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--rdt-surface-2);
+  background: color-mix(in srgb, var(--rdt-surface-2) 88%, var(--rdt-surface) 12%);
   border-bottom: 1px solid var(--rdt-border);
   color: var(--rdt-text-soft);
   font-family: var(--rdt-label-font);
@@ -213,7 +213,7 @@
   border-bottom: 1px solid var(--rdt-border-2);
   padding: var(--rdt-row-pad-y) 8px;
   font-size: var(--rdt-row-font);
-  vertical-align: top;
+  vertical-align: middle;
   background: var(--rdt-surface);
   line-height: var(--rdt-row-line);
   height: var(--rdt-row-height);
@@ -316,6 +316,7 @@
 .handleCell,
 .checkboxCell,
 .indexCell {
+  vertical-align: middle;
   text-align: center;
   color: var(--rdt-text-soft);
 }
@@ -416,6 +417,24 @@
   padding: 2px 0;
 }
 
+.handleCell,
+.checkboxCell,
+.indexCell {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.handleCell,
+.checkboxCell {
+  height: 100%;
+}
+
+.handleCell > *,
+.checkboxCell > *,
+.indexCell > * {
+  vertical-align: middle;
+}
+
 .textCell,
 .json,
 .markdown {
@@ -484,6 +503,13 @@
   justify-content: center;
 }
 
+.booleanToggle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
 .tag {
   border-radius: 999px;
   font-size: 12px;
@@ -528,6 +554,12 @@
   padding: 7px 10px;
   font: inherit;
   color: var(--rdt-text);
+}
+
+.editorTextarea {
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .editorInput:focus {

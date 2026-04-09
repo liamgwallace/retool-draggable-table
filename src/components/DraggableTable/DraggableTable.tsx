@@ -26,6 +26,8 @@ type DragTarget = { key: string | null; before: boolean; groupKey?: string | nul
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'json']).has((format ?? 'string').toLowerCase());
+
 const estimateColumnWidth = (rows: RowData[], column: TableColumn) => {
   const labelWidth = (column.label ?? column.sourceKey).length * 9;
   const valueWidth = rows.reduce((max, row) => {
@@ -148,10 +150,13 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setRowsByKey((current) => {
       const merged: Record<string, RowData> = {};
       for (const key of nextKeys) merged[key] = current[key] ? { ...nextMap[key], ...current[key] } : nextMap[key]!;
+      Object.entries(current).forEach(([key, row]) => {
+        if (!merged[key]) merged[key] = row;
+      });
       return merged;
     });
     setOrderedKeys((current) => {
-      const preserved = current.filter((key) => nextKeys.includes(key));
+      const preserved = current.filter((key) => nextKeys.includes(key) || !(key in nextMap));
       const appended = nextKeys.filter((key) => !preserved.includes(key));
       return preserved.length ? [...preserved, ...appended] : nextKeys;
     });
@@ -272,7 +277,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest(`.${styles.editorPopover}`) || target?.closest('[data-editor-anchor="true"]')) return;
+      if (target?.closest(`.${styles.editorPopover}`)) return;
       setActiveEditor(null);
     };
     window.addEventListener('pointerdown', onPointerDown);
@@ -281,6 +286,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   const startDrag = (rowKey: string, event: React.PointerEvent) => {
     if (disableReorder || loading || internalLoading) return;
+    if (selectedKeys.length > 0 && !selectedKeys.includes(rowKey)) return;
     event.preventDefault();
     const startX = event.clientX;
     const startY = event.clientY;
@@ -473,6 +479,12 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setEditorSelections([]);
   };
 
+  const commitAndCloseArrayEditor = (nextValue: string[]) => {
+    if (!activeEditor) return;
+    updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, nextValue);
+    closeEditor();
+  };
+
   const startResize = (columnKey: string, event: React.PointerEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -536,7 +548,14 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
       next.splice(index + 1, 0, key);
       return next;
     });
+    else if (position === 'bottom' && selectedKeys.length === 1) setOrderedKeys((current) => {
+      const index = current.indexOf(selectedKeys[0]!);
+      const next = [...current];
+      next.splice(index + 1, 0, key);
+      return next;
+    });
     else setOrderedKeys((current) => [...current, key]);
+    setSelectedKeys([key]);
   };
 
   const clearChanges = () => {
@@ -571,11 +590,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     '--rdt-highlight': theme?.highlight ?? DEFAULT_THEME.highlight,
     '--rdt-canvas': theme?.canvas ?? DEFAULT_THEME.canvas,
     '--rdt-surface': theme?.surfacePrimary ?? DEFAULT_THEME.surfacePrimary,
-    '--rdt-surface-2': theme?.surfaceSecondary ?? DEFAULT_THEME.surfaceSecondary,
+    '--rdt-surface-2': theme?.surfaceSecondary || theme?.surfacePrimary || DEFAULT_THEME.surfaceSecondary,
     '--rdt-border': theme?.surfacePrimaryBorder || hexToRgba(theme?.primary, 0.18, DEFAULT_THEME.surfacePrimaryBorder),
     '--rdt-border-2': theme?.surfaceSecondaryBorder || hexToRgba(theme?.secondary ?? theme?.primary, 0.14, DEFAULT_THEME.surfaceSecondaryBorder),
     '--rdt-text': theme?.textDark ?? DEFAULT_THEME.textDark,
-    '--rdt-text-soft': theme?.textLight ?? DEFAULT_THEME.textLight,
+    '--rdt-text-soft': hexToRgba(theme?.textDark ?? DEFAULT_THEME.textDark, 0.68, DEFAULT_THEME.textLight),
     '--rdt-radius': theme?.borderRadius ?? DEFAULT_THEME.borderRadius,
     '--rdt-font': fontFamilyValue(theme?.defaultFont, DEFAULT_THEME.defaultFont),
     '--rdt-label-font': fontFamilyValue(theme?.labelFont, DEFAULT_THEME.labelFont),
@@ -691,9 +710,9 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
                           const text = formatCellText(value, column);
                           const editableCell = editable && !disableEdits && column.editable !== false && isEditableFormat(column.format) && !loading && !internalLoading && !column.hidden;
                           return (
-                            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell) openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
+                            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell && (column.format ?? 'string').toLowerCase() !== 'boolean') openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
                               <div className={styles.cellInner}>
-                                <CellRenderer column={column} value={value} row={row} text={text} />
+                                <CellRenderer column={column} value={value} row={row} text={text} editable={editableCell} onToggleBoolean={() => commitEdit(rowKey, column.sourceKey, String(!Boolean(value)))} />
                               </div>
                             </td>
                           );
@@ -741,7 +760,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               onChangeMultiText={setEditorMultiText}
               onChangeSelections={setEditorSelections}
               onCommitText={(next) => { commitEdit(activeEditor.rowKey, activeEditor.columnKey, next); closeEditor(); }}
-              onCommitArray={(next) => { updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, next); }}
+              onCommitArray={commitAndCloseArrayEditor}
               onClose={closeEditor}
             />
           </div>
@@ -751,7 +770,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   );
 };
 
-const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData; text: string }> = ({ column, value, row, text }) => {
+const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData; text: string; editable: boolean; onToggleBoolean: () => void }> = ({ column, value, row, text, editable, onToggleBoolean }) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (format === 'avatar') {
     const email = String(row.email ?? row.owner ?? '');
@@ -775,9 +794,19 @@ const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData
   }
   if (format === 'boolean') {
     return (
-      <span className={styles.booleanCheckbox} data-checked={Boolean(value)} aria-label={value ? 'True' : 'False'}>
-        <span className={styles.checkboxUi} aria-hidden="true" />
-      </span>
+      <button
+        type="button"
+        className={styles.booleanToggle}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (editable) onToggleBoolean();
+        }}
+        aria-label={value ? 'True' : 'False'}
+      >
+        <span className={styles.booleanCheckbox} data-checked={Boolean(value)}>
+          <span className={styles.checkboxUi} aria-hidden="true" />
+        </span>
+      </button>
     );
   }
   if (format === 'link') {
@@ -857,14 +886,6 @@ const EditorPopover: React.FC<{
     const orderedTagOptions = Array.from(new Set([...options, ...tags, ...text.split(',').map((item) => item.trim()).filter(Boolean)]));
     return (
       <>
-        <div className={styles.editorSelectedRow}>
-          {tags.map((tag) => (
-            <span key={tag} className={styles.multiTagChip} style={{ background: chipColor(tag), color: chipTextColor(tag) }}>
-              {tag}
-              <button type="button" className={styles.multiTagRemove} aria-label={`Remove ${tag}`} onClick={() => { const next = tags.filter((item) => item !== tag); onChangeSelections(next); onCommitArray(next); }}>×</button>
-            </span>
-          ))}
-        </div>
         <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
@@ -888,6 +909,22 @@ const EditorPopover: React.FC<{
           })}
         </div>
       </>
+    );
+  }
+
+  if (isTextAreaFormat(format)) {
+    return (
+      <textarea
+        className={`${styles.editorInput} ${styles.editorTextarea}`}
+        value={editorText}
+        onChange={(event) => onChangeText(event.target.value)}
+        onBlur={() => onCommitText(editorText)}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }}
+        autoFocus
+      />
     );
   }
 

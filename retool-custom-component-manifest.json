@@ -164,6 +164,88 @@
           "type": "array"
         },
         {
+          "name": "columnsJson",
+          "initialValue": [
+            {
+              "sourceKey": "email",
+              "label": "Email",
+              "format": "email",
+              "editable": true,
+              "width": 260
+            },
+            {
+              "sourceKey": "role",
+              "label": "Role",
+              "format": "tag",
+              "editable": true,
+              "width": 110
+            },
+            {
+              "sourceKey": "enabled",
+              "label": "Enabled",
+              "format": "boolean",
+              "editable": true,
+              "width": 100,
+              "align": "center"
+            },
+            {
+              "sourceKey": "createdAt",
+              "label": "Created at",
+              "format": "date",
+              "editable": true,
+              "width": 140
+            },
+            {
+              "sourceKey": "teams",
+              "label": "Teams",
+              "format": "multiple tags",
+              "editable": true,
+              "width": 240
+            },
+            {
+              "sourceKey": "website",
+              "label": "Website",
+              "format": "link",
+              "editable": true,
+              "width": 240
+            },
+            {
+              "sourceKey": "bio",
+              "label": "Bio",
+              "format": "markdown",
+              "editable": true
+            }
+          ],
+          "inspector": "text",
+          "label": "Columns JSON",
+          "description": "Array of column definitions. Supports `width`, `editable`, and optional `resizable`.",
+          "type": "array"
+        },
+        {
+          "name": "columnOrderingJson",
+          "initialValue": [
+            "email",
+            "role",
+            "enabled",
+            "createdAt",
+            "teams",
+            "website",
+            "bio"
+          ],
+          "inspector": "text",
+          "label": "Column Ordering JSON",
+          "description": "Array of `sourceKey` values in the order they should display.",
+          "type": "array"
+        },
+        {
+          "name": "groupByColumnsJson",
+          "initialValue": [],
+          "inspector": "text",
+          "label": "Group By JSON",
+          "description": "Array of fields used to group rows. Use `[]` for no grouping.",
+          "type": "array"
+        },
+        {
           "name": "selectedRows",
           "initialValue": [],
           "inspector": "hidden",
@@ -278,125 +360,6 @@
           ],
           "description": "Controls row density. Use `dynamic` for taller, more wrapped rows.",
           "type": "enumeration"
-        },
-        {
-          "name": "columnsJson",
-          "initialValue": [
-            {
-              "sourceKey": "email",
-              "label": "Email",
-              "format": "email",
-              "editable": true,
-              "width": 260
-            },
-            {
-              "sourceKey": "role",
-              "label": "Role",
-              "format": "tag",
-              "editable": true,
-              "width": 110
-            },
-            {
-              "sourceKey": "enabled",
-              "label": "Enabled",
-              "format": "boolean",
-              "editable": true,
-              "width": 100,
-              "align": "center"
-            },
-            {
-              "sourceKey": "createdAt",
-              "label": "Created at",
-              "format": "date",
-              "editable": true,
-              "width": 140
-            },
-            {
-              "sourceKey": "teams",
-              "label": "Teams",
-              "format": "multiple tags",
-              "editable": true,
-              "width": 240
-            },
-            {
-              "sourceKey": "website",
-              "label": "Website",
-              "format": "link",
-              "editable": true,
-              "width": 240
-            },
-            {
-              "sourceKey": "bio",
-              "label": "Bio",
-              "format": "markdown",
-              "editable": true
-            }
-          ],
-          "inspector": "text",
-          "label": "Columns JSON",
-          "description": "Array of column definitions. Supports `width`, `editable`, and optional `resizable`.",
-          "type": "array"
-        },
-        {
-          "name": "columnOrderingJson",
-          "initialValue": [
-            "email",
-            "role",
-            "enabled",
-            "createdAt",
-            "teams",
-            "website",
-            "bio"
-          ],
-          "inspector": "text",
-          "label": "Column Ordering JSON",
-          "description": "Array of `sourceKey` values in the order they should display.",
-          "type": "array"
-        },
-        {
-          "name": "groupByColumnsJson",
-          "initialValue": [],
-          "inspector": "text",
-          "label": "Group By JSON",
-          "description": "Array of fields used to group rows. Use `[]` for no grouping.",
-          "type": "array"
-        },
-        {
-          "name": "title",
-          "initialValue": "Draggable Table",
-          "inspector": "text",
-          "label": "Title",
-          "description": "Title text shown in the top bar.",
-          "type": "string"
-        },
-        {
-          "name": "emptyMessage",
-          "initialValue": "No rows to display",
-          "inspector": "text",
-          "label": "Empty Message",
-          "description": "Text shown when the table has no rows.",
-          "type": "string"
-        },
-        {
-          "name": "selectedRowKey",
-          "initialValue": "",
-          "inspector": "hidden",
-          "label": "Selected Row Key",
-          "type": "string"
-        },
-        {
-          "name": "changesetObject",
-          "initialValue": "{}",
-          "inspector": "hidden",
-          "label": "Changeset Object",
-          "type": "string"
-        },
-        {
-          "name": "eventContext",
-          "initialValue": "",
-          "inspector": "hidden",
-          "label": "Event Context",
-          "type": "string"
         },
         {
           "name": "allowGroupReorder",
@@ -553,6 +516,43 @@
           "inspector": "hidden",
           "label": "Selected Cell",
           "type": "object"
+        },
+        {
+          "name": "title",
+          "initialValue": "Draggable Table",
+          "inspector": "text",
+          "label": "Title",
+          "description": "Title text shown in the top bar.",
+          "type": "string"
+        },
+        {
+          "name": "emptyMessage",
+          "initialValue": "No rows to display",
+          "inspector": "text",
+          "label": "Empty Message",
+          "description": "Text shown when the table has no rows.",
+          "type": "string"
+        },
+        {
+          "name": "selectedRowKey",
+          "initialValue": "",
+          "inspector": "hidden",
+          "label": "Selected Row Key",
+          "type": "string"
+        },
+        {
+          "name": "changesetObject",
+          "initialValue": "{}",
+          "inspector": "hidden",
+          "label": "Changeset Object",
+          "type": "string"
+        },
+        {
+          "name": "eventContext",
+          "initialValue": "",
+          "inspector": "hidden",
+          "label": "Event Context",
+          "type": "string"
         },
         {
           "name": "selectedDataIndex",
