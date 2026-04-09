@@ -618,11 +618,12 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     const shellRect = tableRef.current.getBoundingClientRect();
     const popoverRect = editorPopoverRef.current.getBoundingClientRect();
     const gap = 8;
-    const desiredLeft = activeEditor.x - shellRect.left;
-    const belowTop = activeEditor.y - shellRect.top + gap;
-    const aboveTop = activeEditor.y - shellRect.top - popoverRect.height - gap;
-    const roomBelow = shellRect.bottom - activeEditor.y;
-    const roomAbove = activeEditor.y - shellRect.top;
+    const anchorRect = activeEditor.rect;
+    const desiredLeft = anchorRect.left - shellRect.left;
+    const belowTop = anchorRect.bottom - shellRect.top + gap;
+    const aboveTop = anchorRect.top - shellRect.top - popoverRect.height - gap;
+    const roomBelow = shellRect.bottom - anchorRect.bottom;
+    const roomAbove = anchorRect.top - shellRect.top;
     const left = clamp(desiredLeft, 8, Math.max(8, shellRect.width - popoverRect.width - 8));
     const top = roomBelow >= popoverRect.height + gap || roomBelow >= roomAbove
       ? clamp(belowTop, 8, Math.max(8, shellRect.height - popoverRect.height - 8))
