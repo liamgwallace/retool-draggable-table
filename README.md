@@ -2,6 +2,10 @@
 
 `RetoolDraggableTable` is a custom Retool component for reorder-heavy workflows. It combines drag-and-drop row ordering, optional grouped views, inline editing, add-row actions, selection state, and Retool-friendly output models so the parent app can save exactly what changed.
 
+## Preview
+
+![Basic table preview](docs/screenshots/table_view.jpg)
+
 ## What it does
 
 - Reorders rows with drag handles.
