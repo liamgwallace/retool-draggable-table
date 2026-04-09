@@ -1,0 +1,596 @@
+{
+  "customComponentSupportVersion": "2",
+  "components": {
+    "RetoolDraggableTable": {
+      "name": "Retool Draggable Table",
+      "model": [
+        {
+          "name": "dataSource",
+          "initialValue": [
+            {
+              "id": 0,
+              "email": "chic.footitt@yahoo.com",
+              "role": "Viewer",
+              "enabled": true,
+              "createdAt": "2023-01-16",
+              "teams": [
+                "Workplace",
+                "Infrastructure"
+              ],
+              "website": "https://chic.footitt.com",
+              "bio": "Nulla sit amet nibh at augue facilisis viverra quis id dui."
+            },
+            {
+              "id": 1,
+              "email": "kentonworling@icloud.com",
+              "role": "Viewer",
+              "enabled": false,
+              "createdAt": "2021-12-24",
+              "teams": [
+                "Workplace"
+              ],
+              "website": "https://kenton.worling.com",
+              "bio": "Duis viverra elementum ante, placerat sollicitudin ipsum laoreet nec."
+            },
+            {
+              "id": 2,
+              "email": "efender@outlook.com",
+              "role": "Editor",
+              "enabled": true,
+              "createdAt": "2022-01-03",
+              "teams": [
+                "Product",
+                "Sales"
+              ],
+              "website": "https://evelina.fender.com",
+              "bio": "Donec in lorem a dolor placerat gravida."
+            },
+            {
+              "id": 3,
+              "email": "lexisspeers@icloud.com",
+              "role": "Admin",
+              "enabled": true,
+              "createdAt": "2022-12-13",
+              "teams": [
+                "Infrastructure",
+                "Design"
+              ],
+              "website": "https://lexis.speers.com",
+              "bio": "Suspendisse et lacus augue. Donec in lorem a dolor placerat gravida."
+            },
+            {
+              "id": 4,
+              "email": "kenton.antonioni@icloud.com",
+              "role": "Admin",
+              "enabled": true,
+              "createdAt": "2022-04-15",
+              "teams": [
+                "Success",
+                "Recruiting",
+                "Data"
+              ],
+              "website": "https://kenton.antonioni.com",
+              "bio": "Etiam bibendum auctor aliquet. Nullam mattis ultricies metus."
+            },
+            {
+              "id": 5,
+              "email": "nanonstit@gmail.com",
+              "role": "Editor",
+              "enabled": false,
+              "createdAt": "2022-10-14",
+              "teams": [
+                "Data"
+              ],
+              "website": "https://nanon.stit.com",
+              "bio": "Sed eu mollis felis. Nulla sit amet augue facilisis viverra."
+            },
+            {
+              "id": 6,
+              "email": "shaylah.aynscombe@outlook.com",
+              "role": "Viewer",
+              "enabled": true,
+              "createdAt": "2022-01-16",
+              "teams": [
+                "Customer Success"
+              ],
+              "website": "https://shaylah.aynscombe.com",
+              "bio": "Phasellus bibendum luctus dignissim. Donec in lorem a dolor placerat gravida."
+            },
+            {
+              "id": 7,
+              "email": "lscad@gmail.com",
+              "role": "Editor",
+              "enabled": true,
+              "createdAt": "2022-01-03",
+              "teams": [
+                "Product"
+              ],
+              "website": "https://lexis.scad.com",
+              "bio": "Nulla sit amet augue facilisis viverra quis id dui."
+            },
+            {
+              "id": 8,
+              "email": "jspeers@outlook.com",
+              "role": "Editor",
+              "enabled": true,
+              "createdAt": "2022-08-14",
+              "teams": [
+                "Product",
+                "Design"
+              ],
+              "website": "https://joan.speers.com",
+              "bio": "Proin scelerisque molestie lacinia."
+            },
+            {
+              "id": 9,
+              "email": "c.anstey@yahoo.com",
+              "role": "Admin",
+              "enabled": false,
+              "createdAt": "2023-03-21",
+              "teams": [
+                "Infrastructure"
+              ],
+              "website": "https://cassandre.anstey.com",
+              "bio": "Vivamus sit amet metus velit. Lorem ipsum dolor sit amet."
+            },
+            {
+              "id": 10,
+              "email": "amberlyfender@outlook.com",
+              "role": "Editor",
+              "enabled": true,
+              "createdAt": "2022-11-02",
+              "teams": [
+                "Product"
+              ],
+              "website": "https://amberly.fender.com",
+              "bio": "Donec in lorem a dolor placerat gravida."
+            },
+            {
+              "id": 11,
+              "email": "d.scad@outlook.com",
+              "role": "Admin",
+              "enabled": true,
+              "createdAt": "2022-06-30",
+              "teams": [
+                "Security"
+              ],
+              "website": "https://di.scad.com",
+              "bio": "Ut ullamcorper gravida pretium. Suspendisse et lacus augue."
+            }
+          ],
+          "inspector": "text",
+          "label": "Data Source",
+          "description": "Array of row objects. Leave the sample data or bind a query result, for example `{{query.data}}`.",
+          "type": "array"
+        },
+        {
+          "name": "selectedRows",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Selected Rows",
+          "type": "array"
+        },
+        {
+          "name": "selectedRowKeys",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Selected Row Keys",
+          "type": "array"
+        },
+        {
+          "name": "selectedDataIndexes",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Selected Data Indexes",
+          "type": "array"
+        },
+        {
+          "name": "selectedDisplayIndexes",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Selected Display Indexes",
+          "type": "array"
+        },
+        {
+          "name": "orderedRows",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Ordered Rows",
+          "type": "array"
+        },
+        {
+          "name": "orderedRowKeys",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Ordered Row Keys",
+          "type": "array"
+        },
+        {
+          "name": "reorderChangeset",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Reorder Changeset",
+          "type": "array"
+        },
+        {
+          "name": "changesetArray",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "Changeset Array",
+          "type": "array"
+        },
+        {
+          "name": "newRows",
+          "initialValue": [],
+          "inspector": "hidden",
+          "label": "New Rows",
+          "type": "array"
+        },
+        {
+          "name": "primaryKey",
+          "initialValue": "id",
+          "inspector": "select",
+          "label": "Primary Key",
+          "enumDefinition": [
+            "id",
+            "email",
+            "role"
+          ],
+          "description": "Unique field used to identify rows across edits and reorder. Example: `id`, `uuid`, or `user_id`.",
+          "type": "enumeration"
+        },
+        {
+          "name": "indexColumn",
+          "initialValue": "none",
+          "inspector": "select",
+          "label": "Index Column",
+          "enumDefinition": [
+            "none",
+            "order",
+            "sortOrder"
+          ],
+          "description": "Optional order field to write back row position. Choose `none` if you do not want a persisted order field.",
+          "type": "enumeration"
+        },
+        {
+          "name": "addRowPosition",
+          "initialValue": "bottom",
+          "inspector": "segmented",
+          "label": "Button Position",
+          "enumDefinition": [
+            "top",
+            "bottom"
+          ],
+          "description": "Where the add-row icon buttons appear: toolbar top or below the table.",
+          "type": "enumeration"
+        },
+        {
+          "name": "rowHeight",
+          "initialValue": "small",
+          "inspector": "select",
+          "label": "Row Height",
+          "enumDefinition": [
+            "extra small",
+            "small",
+            "medium",
+            "large",
+            "dynamic"
+          ],
+          "description": "Controls row density. Use `dynamic` for taller, more wrapped rows.",
+          "type": "enumeration"
+        },
+        {
+          "name": "columnsJson",
+          "initialValue": [
+            {
+              "sourceKey": "email",
+              "label": "Email",
+              "format": "email",
+              "editable": true,
+              "width": 260
+            },
+            {
+              "sourceKey": "role",
+              "label": "Role",
+              "format": "tag",
+              "editable": true,
+              "width": 110
+            },
+            {
+              "sourceKey": "enabled",
+              "label": "Enabled",
+              "format": "boolean",
+              "editable": true,
+              "width": 100,
+              "align": "center"
+            },
+            {
+              "sourceKey": "createdAt",
+              "label": "Created at",
+              "format": "date",
+              "editable": true,
+              "width": 140
+            },
+            {
+              "sourceKey": "teams",
+              "label": "Teams",
+              "format": "multiple tags",
+              "editable": true,
+              "width": 240
+            },
+            {
+              "sourceKey": "website",
+              "label": "Website",
+              "format": "link",
+              "editable": true,
+              "width": 240
+            },
+            {
+              "sourceKey": "bio",
+              "label": "Bio",
+              "format": "markdown",
+              "editable": true
+            }
+          ],
+          "inspector": "text",
+          "label": "Columns JSON",
+          "description": "Array of column definitions. Supports `width`, `editable`, and optional `resizable`.",
+          "type": "array"
+        },
+        {
+          "name": "columnOrderingJson",
+          "initialValue": [
+            "email",
+            "role",
+            "enabled",
+            "createdAt",
+            "teams",
+            "website",
+            "bio"
+          ],
+          "inspector": "text",
+          "label": "Column Ordering JSON",
+          "description": "Array of `sourceKey` values in the order they should display.",
+          "type": "array"
+        },
+        {
+          "name": "groupByColumnsJson",
+          "initialValue": [],
+          "inspector": "text",
+          "label": "Group By JSON",
+          "description": "Array of fields used to group rows. Use `[]` for no grouping.",
+          "type": "array"
+        },
+        {
+          "name": "title",
+          "initialValue": "Draggable Table",
+          "inspector": "text",
+          "label": "Title",
+          "description": "Title text shown in the top bar.",
+          "type": "string"
+        },
+        {
+          "name": "emptyMessage",
+          "initialValue": "No rows to display",
+          "inspector": "text",
+          "label": "Empty Message",
+          "description": "Text shown when the table has no rows.",
+          "type": "string"
+        },
+        {
+          "name": "selectedRowKey",
+          "initialValue": "",
+          "inspector": "hidden",
+          "label": "Selected Row Key",
+          "type": "string"
+        },
+        {
+          "name": "changesetObject",
+          "initialValue": "{}",
+          "inspector": "hidden",
+          "label": "Changeset Object",
+          "type": "string"
+        },
+        {
+          "name": "eventContext",
+          "initialValue": "",
+          "inspector": "hidden",
+          "label": "Event Context",
+          "type": "string"
+        },
+        {
+          "name": "allowGroupReorder",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Allow Group Reorder",
+          "description": "Shows a drag handle on each group header so grouped sections can be reordered.",
+          "type": "boolean"
+        },
+        {
+          "name": "allowCrossGroupDrag",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Allow Cross Group Drag",
+          "description": "If enabled, dragging a row into another group updates the grouped field value.",
+          "type": "boolean"
+        },
+        {
+          "name": "multiSelectEnabled",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Multi Select",
+          "description": "Adds row checkboxes so selected rows can move as a block.",
+          "type": "boolean"
+        },
+        {
+          "name": "editable",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Editable",
+          "description": "Master switch for inline editing. Turn this off to make the whole table read-only.",
+          "type": "boolean"
+        },
+        {
+          "name": "showSavePrompt",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Show Save Prompt",
+          "description": "Shows the unsaved changes badge when the table is dirty.",
+          "type": "boolean"
+        },
+        {
+          "name": "saveVisible",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Save Visible",
+          "description": "Shows the save action in the toolbar.",
+          "type": "boolean"
+        },
+        {
+          "name": "showHeader",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Show Header",
+          "description": "Shows the table column headers.",
+          "type": "boolean"
+        },
+        {
+          "name": "showTitle",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Show Title",
+          "description": "Shows the title text in the top bar.",
+          "type": "boolean"
+        },
+        {
+          "name": "stickyHeader",
+          "initialValue": true,
+          "inspector": "checkbox",
+          "label": "Sticky Header",
+          "description": "Keeps the column headers pinned while scrolling.",
+          "type": "boolean"
+        },
+        {
+          "name": "loading",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Loading",
+          "description": "Displays loading treatment and blocks edits/reordering.",
+          "type": "boolean"
+        },
+        {
+          "name": "disableEdits",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Disable Edits",
+          "description": "Temporary lock for edits while leaving the table otherwise interactive.",
+          "type": "boolean"
+        },
+        {
+          "name": "disableSave",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Disable Save",
+          "description": "Hides or disables the save action.",
+          "type": "boolean"
+        },
+        {
+          "name": "disableReorder",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Disable Reorder",
+          "description": "Prevents drag-to-reorder interactions.",
+          "type": "boolean"
+        },
+        {
+          "name": "disableAddRow",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Disable Add Row",
+          "description": "Removes the add-row actions from the UI.",
+          "type": "boolean"
+        },
+        {
+          "name": "isDirty",
+          "initialValue": false,
+          "inspector": "hidden",
+          "label": "Is Dirty",
+          "type": "boolean"
+        },
+        {
+          "name": "isLoading",
+          "initialValue": false,
+          "inspector": "hidden",
+          "label": "Is Loading",
+          "type": "boolean"
+        },
+        {
+          "name": "theme",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Theme",
+          "description": "Optional Retool theme token object. Usually leave this bound to the built-in theme data.",
+          "type": "object"
+        },
+        {
+          "name": "themeStyles",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Theme Styles",
+          "description": "CSS-style overrides for the component shell.",
+          "type": "object"
+        },
+        {
+          "name": "selectedRow",
+          "initialValue": {},
+          "inspector": "hidden",
+          "label": "Selected Row",
+          "type": "object"
+        },
+        {
+          "name": "selectedCell",
+          "initialValue": {},
+          "inspector": "hidden",
+          "label": "Selected Cell",
+          "type": "object"
+        },
+        {
+          "name": "selectedDataIndex",
+          "initialValue": -1,
+          "inspector": "hidden",
+          "label": "Selected Data Index",
+          "type": "number"
+        },
+        {
+          "name": "selectedDisplayIndex",
+          "initialValue": -1,
+          "inspector": "hidden",
+          "label": "Selected Display Index",
+          "type": "number"
+        }
+      ],
+      "events": [
+        "rowClick",
+        "doubleClickRow",
+        "selectRow",
+        "deselectRow",
+        "changeRowSelection",
+        "clickCell",
+        "changeCell",
+        "clickAction",
+        "clickToolbar",
+        "rowReorderStart",
+        "rowReorder",
+        "rowReorderCancel",
+        "save",
+        "cancel",
+        "expandRow",
+        "focus",
+        "blur",
+        "change"
+      ],
+      "defaultHeight": 54,
+      "defaultWidth": 12
+    }
+  }
+}

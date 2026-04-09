@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.idea/
+
+retool-draggable-table-build-plan.md
+retool-table-component-reference.md
+retool-table-reorder-considerations.md

@@ -1,0 +1,942 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
+import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, moveKeys } from '../../lib/tableUtils';
+import styles from './DraggableTable.module.css';
+
+type DragState = {
+  rowKey: string;
+  startX: number;
+  startY: number;
+  active: boolean;
+  targetKey: string | null;
+  insertBefore: boolean;
+} | null;
+
+type RenderRow = RowData & { __key: string };
+type ActiveEditor = { rowKey: string; columnKey: string; x: number; y: number; rect: DOMRect } | null;
+type GroupDragState = {
+  key: string;
+  startY: number;
+  active: boolean;
+  targetKey: string | null;
+  insertBefore: boolean;
+} | null;
+type EditorPosition = { left: number; top: number };
+type DragTarget = { key: string | null; before: boolean; groupKey?: string | null; invalid: boolean } | null;
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const estimateColumnWidth = (rows: RowData[], column: TableColumn) => {
+  const labelWidth = (column.label ?? column.sourceKey).length * 9;
+  const valueWidth = rows.reduce((max, row) => {
+    const cell = formatCellText(row[column.sourceKey], column);
+    return Math.max(max, cell.length * 7.5);
+  }, 0);
+  return clamp(Math.round(Math.max(labelWidth, valueWidth) + 36), 100, 420);
+};
+
+const ToolbarIcon = ({ kind }: { kind: 'save' | 'cancel' | 'add-top' | 'add-bottom' | 'add-after' }) => {
+  if (kind === 'save') return <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 2.5h7l3 3V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.5Zm2 0V6h5V2.5H5Z" fill="currentColor"/><path d="M5 9.5h6" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>;
+  if (kind === 'cancel') return <span aria-hidden="true">×</span>;
+  if (kind === 'add-top') return <span aria-hidden="true">⇡+</span>;
+  if (kind === 'add-bottom') return <span aria-hidden="true">⇣+</span>;
+  return <span aria-hidden="true">+↘</span>;
+};
+
+const inputValueFor = (value: unknown, column: TableColumn) => {
+  const format = (column.format ?? 'string').toLowerCase();
+  if (format === 'boolean') return String(Boolean(value));
+  if (Array.isArray(value)) return value.join(', ');
+  return value === null || value === undefined ? '' : String(value);
+};
+
+const parseInputValue = (value: string, column: TableColumn) => {
+  const format = (column.format ?? 'string').toLowerCase();
+  if (format === 'number' || format === 'progress') return value === '' ? '' : Number(value);
+  if (format === 'boolean') return value === 'true';
+  if (format === 'multiple tags') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return value;
+};
+
+const deriveColumns = (rows: RowData[], columns?: TableColumn[], columnOrdering?: string[]) => {
+  if (columns?.length) {
+    const byKey = new Map(columns.map((column) => [column.sourceKey, column]));
+    const ordering = columnOrdering?.length ? columnOrdering : columns.map((column) => column.sourceKey);
+    return ordering.map((key) => byKey.get(key)).filter(Boolean) as TableColumn[];
+  }
+
+  const sample = rows[0] ?? {};
+  return Object.keys(sample)
+    .filter((key) => !key.startsWith('__'))
+    .map((key) => ({ sourceKey: key, label: key, format: 'string', editable: true })) as TableColumn[];
+};
+
+export const DraggableTable: React.FC<DraggableTableProps> = ({
+  dataSource,
+  primaryKey = 'id',
+  indexColumn,
+  columns,
+  columnOrdering,
+  groupByColumns = [],
+  allowCrossGroupDrag = false,
+  multiSelectEnabled = false,
+  editable = true,
+  showSavePrompt = true,
+  saveVisible = true,
+  showHeader = true,
+  showTitle = true,
+  stickyHeader = true,
+  loading = false,
+  addRowPosition = 'bottom',
+  rowHeight = 'small',
+  theme,
+  themeStyles,
+  allowGroupReorder = false,
+  disableEdits = false,
+  disableSave = false,
+  disableReorder = false,
+  disableAddRow = false,
+  emptyMessage = 'No rows to display',
+  title = 'Draggable Table',
+  onModelChange,
+  onRowClick,
+  onDoubleClickRow,
+  onSelectRow,
+  onDeselectRow,
+  onChangeRowSelection,
+  onClickCell,
+  onChangeCell,
+  onClickAction,
+  onClickToolbar,
+  onRowReorderStart,
+  onRowReorderCancel,
+  onFocus,
+  onBlur,
+  onChange,
+  onRowReorder,
+  onSave,
+  onCancel,
+}) => {
+  const initialRows = useMemo(() => cloneRows(dataSource), [dataSource]);
+  const [rowsByKey, setRowsByKey] = useState<Record<string, RowData>>(() => Object.fromEntries(initialRows.map((row, index) => [createRowKey(row, primaryKey, indexColumn, index), { ...row }])))
+  const [orderedKeys, setOrderedKeys] = useState<string[]>(() => initialRows.map((row, index) => createRowKey(row, primaryKey, indexColumn, index)));
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [edits, setEdits] = useState<Record<string, Partial<RowData>>>({});
+  const [newRows, setNewRows] = useState<RowData[]>([]);
+  const [baselineKeys, setBaselineKeys] = useState<string[]>(orderedKeys);
+  const [groupValues, setGroupValues] = useState<string[]>([]);
+  const [dragState, setDragState] = useState<DragState>(null);
+  const [groupDragState, setGroupDragState] = useState<GroupDragState>(null);
+  const [dropTarget, setDropTarget] = useState<DragTarget>(null);
+  const [activeEditor, setActiveEditor] = useState<ActiveEditor>(null);
+  const [editorPosition, setEditorPosition] = useState<EditorPosition | null>(null);
+  const [editorText, setEditorText] = useState('');
+  const [editorMultiText, setEditorMultiText] = useState('');
+  const [editorSelections, setEditorSelections] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [internalLoading, setInternalLoading] = useState(false);
+  const dragCleanup = useRef<(() => void) | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const editorPopoverRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedRef = useRef(false);
+  const selectionMountedRef = useRef(false);
+
+  useEffect(() => {
+    const nextKeys = initialRows.map((row, index) => createRowKey(row, primaryKey, indexColumn, index));
+    const nextMap = Object.fromEntries(initialRows.map((row, index) => [nextKeys[index]!, { ...row }]));
+    setRowsByKey((current) => {
+      const merged: Record<string, RowData> = {};
+      for (const key of nextKeys) merged[key] = current[key] ? { ...nextMap[key], ...current[key] } : nextMap[key]!;
+      return merged;
+    });
+    setOrderedKeys((current) => {
+      const preserved = current.filter((key) => nextKeys.includes(key));
+      const appended = nextKeys.filter((key) => !preserved.includes(key));
+      return preserved.length ? [...preserved, ...appended] : nextKeys;
+    });
+    setBaselineKeys((current) => current.length ? current : nextKeys);
+  }, [initialRows, primaryKey, indexColumn]);
+
+  useEffect(() => {
+    if (!groupByColumns.length) {
+      setGroupValues([]);
+      return;
+    }
+    const field = groupByColumns[0]!;
+    const valuesFromRows = initialRows.map((row) => String(row[field] ?? 'Ungrouped'));
+    setGroupValues((current) => {
+      const merged = [...current];
+      valuesFromRows.forEach((value) => {
+        if (!merged.includes(value)) merged.push(value);
+      });
+      return merged.length ? merged : valuesFromRows;
+    });
+  }, [groupByColumns, initialRows]);
+
+  const allColumns = useMemo(() => deriveColumns(Object.values(rowsByKey), columns, columnOrdering), [rowsByKey, columns, columnOrdering]);
+  const visibleColumns = useMemo(() => allColumns.filter((column) => !column.hidden), [allColumns]);
+
+  useEffect(() => {
+    setColumnWidths((current) => {
+      const next = { ...current };
+      allColumns.forEach((column) => {
+        if (column.width && !next[column.sourceKey]) next[column.sourceKey] = column.width;
+        if (!column.width && column.resizable !== false && !next[column.sourceKey]) next[column.sourceKey] = estimateColumnWidth(Object.values(rowsByKey), column);
+      });
+      return next;
+    });
+  }, [allColumns, rowsByKey]);
+
+  const orderedRows = useMemo<RenderRow[]>(() => orderedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [orderedKeys, rowsByKey]);
+  const groupedRows = useMemo(() => {
+    if (!groupByColumns.length) return [{ key: '__all__', label: '', rows: orderedRows }];
+    const field = groupByColumns[0]!;
+    const groups = new Map<string, { key: string; label: string; rows: RenderRow[] }>();
+    orderedRows.forEach((row) => {
+      const value = String(row[field] ?? 'Ungrouped');
+      if (!groups.has(value)) groups.set(value, { key: value, label: value, rows: [] });
+      groups.get(value)!.rows.push(row);
+    });
+    const orderedGroupKeys = [...groupValues, ...groups.keys()].filter((value, index, arr) => arr.indexOf(value) === index);
+    return orderedGroupKeys.map((key) => groups.get(key) ?? { key, label: key, rows: [] });
+  }, [groupByColumns, orderedRows]);
+
+  const reorderChangeset = useMemo(() => buildReorderChangeset(orderedKeys, baselineKeys), [orderedKeys, baselineKeys]);
+  const changesetArray = useMemo(() => Object.entries(edits).map(([key, changes]) => ({ key, changes })), [edits]);
+  const changesetObject = useMemo(() => edits, [edits]);
+  const selectedRows = useMemo<RenderRow[]>(() => selectedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [selectedKeys, rowsByKey]);
+  const selectedRow = selectedRows[0] ?? null;
+  const isDirty = changesetArray.length > 0 || reorderChangeset.length > 0 || newRows.length > 0;
+
+  const model: TableModel = useMemo(() => ({
+    selectedRow,
+    selectedRows: selectedRows.map(({ __key, ...row }) => row),
+    selectedRowKey: selectedRow?.__key ?? null,
+    selectedRowKeys: selectedKeys,
+    selectedDataIndex: selectedRow ? (() => {
+      const index = dataSource.findIndex((row, itemIndex) => createRowKey(row, primaryKey, indexColumn, itemIndex) === selectedRow.__key);
+      return index >= 0 ? index : null;
+    })() : null,
+    selectedDataIndexes: selectedKeys.map((key) => dataSource.findIndex((row, itemIndex) => createRowKey(row, primaryKey, indexColumn, itemIndex) === key)).filter((index) => index >= 0),
+    selectedDisplayIndex: selectedRow ? (() => {
+      const index = orderedKeys.indexOf(selectedRow.__key);
+      return index >= 0 ? index : null;
+    })() : null,
+    selectedDisplayIndexes: selectedKeys.map((key) => orderedKeys.indexOf(key)).filter((index) => index >= 0),
+    selectedCell,
+    orderedRows: orderedRows.map(({ __key, ...row }) => row),
+    orderedRowKeys: orderedKeys,
+    reorderChangeset,
+    changesetArray,
+    changesetObject,
+    newRows,
+    isDirty,
+    disableEdits,
+    disableSave,
+    isLoading: loading || internalLoading,
+  }), [changesetArray, changesetObject, dataSource, disableEdits, disableSave, indexColumn, internalLoading, isDirty, loading, newRows, orderedKeys, orderedRows, primaryKey, reorderChangeset, selectedKeys, selectedRow, selectedCell]);
+
+  useEffect(() => {
+    onModelChange?.(model);
+    if (hasMountedRef.current) onChange?.(model);
+    else hasMountedRef.current = true;
+  }, [model, onChange, onModelChange]);
+
+  useEffect(() => {
+    if (selectionMountedRef.current) onChangeRowSelection?.(selectedKeys);
+    else selectionMountedRef.current = true;
+  }, [onChangeRowSelection, selectedKeys]);
+
+  const syncRow = (rowKey: string, nextRow: RowData) => {
+    setRowsByKey((current) => ({ ...current, [rowKey]: nextRow }));
+  };
+
+  const clearDragListeners = () => {
+    dragCleanup.current?.();
+    dragCleanup.current = null;
+  };
+
+  const isInvalidRowDrop = (movingKeys: string[], targetKey: string | null, targetGroupKey?: string | null) => {
+    if (!groupByColumns.length) return false;
+    const groupField = groupByColumns[0]!;
+    const movingRows = movingKeys.map((key) => rowsByKey[key]).filter(Boolean) as RowData[];
+    const sourceGroups = new Set(movingRows.map((row) => String(row[groupField] ?? 'Ungrouped')));
+    const nextGroup = targetGroupKey ?? (targetKey ? String(rowsByKey[targetKey]?.[groupField] ?? 'Ungrouped') : null);
+    if (allowCrossGroupDrag) return false;
+    return sourceGroups.size > 1 || (nextGroup !== null && !sourceGroups.has(nextGroup));
+  };
+
+  useEffect(() => () => clearDragListeners(), []);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(`.${styles.editorPopover}`) || target?.closest('[data-editor-anchor="true"]')) return;
+      setActiveEditor(null);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, []);
+
+  const startDrag = (rowKey: string, event: React.PointerEvent) => {
+    if (disableReorder || loading || internalLoading) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const movingKeys = multiSelectEnabled && selectedKeys.includes(rowKey) ? selectedKeys : [rowKey];
+    let dropSnapshot: DragTarget = null;
+    setDragState({ rowKey, startX, startY, active: false, targetKey: null, insertBefore: true });
+    onRowReorderStart?.(model);
+
+    const onMove = (moveEvent: PointerEvent) => {
+      setDragState((current) => {
+        if (!current) return current;
+        const dx = Math.abs(moveEvent.clientX - current.startX);
+        const dy = Math.abs(moveEvent.clientY - current.startY);
+        const active = current.active || Math.max(dx, dy) > 4;
+        const pointerTarget = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY) as HTMLElement | null;
+        const targetEl = pointerTarget?.closest?.('[data-row-key]') as HTMLElement | null;
+        const emptyGroupEl = pointerTarget?.closest?.('[data-group-drop-zone]') as HTMLElement | null;
+        const targetKey = targetEl?.dataset.rowKey ?? null;
+        const targetGroupKey = emptyGroupEl?.dataset.groupDropZone ?? null;
+        const insertBefore = targetEl ? moveEvent.clientY < targetEl.getBoundingClientRect().top + targetEl.getBoundingClientRect().height / 2 : true;
+        const invalid = isInvalidRowDrop(movingKeys, targetKey, targetGroupKey);
+        dropSnapshot = targetKey || targetGroupKey ? { key: targetKey, before: insertBefore, groupKey: targetGroupKey, invalid } : null;
+        setDropTarget(dropSnapshot);
+        return { ...current, active, targetKey, insertBefore };
+      });
+    };
+
+    const finishDrag = () => {
+      clearDragListeners();
+      setInternalLoading(false);
+      setDropTarget(null);
+      setDragState((current) => {
+        if (!current?.active) {
+          onRowReorderCancel?.();
+          return null;
+        }
+        if (dropSnapshot?.invalid) {
+          onRowReorderCancel?.();
+          return null;
+        }
+        if (!current.targetKey && !dropSnapshot?.groupKey) {
+          onRowReorderCancel?.();
+          return null;
+        }
+        if (current.targetKey && movingKeys.includes(current.targetKey)) {
+          onRowReorderCancel?.();
+          return null;
+        }
+        const targetRow = rowsByKey[current.targetKey];
+        const movingRows = movingKeys.map((key) => ({ key, row: rowsByKey[key] })).filter((item) => item.row) as Array<{ key: string; row: RowData }>;
+        const nextOrder = current.targetKey ? moveKeys(orderedKeys, movingKeys, current.targetKey, current.insertBefore) : [...orderedKeys.filter((key) => !movingKeys.includes(key)), ...movingKeys];
+        setOrderedKeys(nextOrder);
+        if (groupByColumns.length && allowCrossGroupDrag) {
+          const groupField = groupByColumns[0]!;
+          const targetGroupValue = dropSnapshot?.groupKey ?? targetRow?.[groupField];
+          setRowsByKey((currentRows) => {
+            const copy = { ...currentRows };
+            movingKeys.forEach((key) => {
+              copy[key] = { ...copy[key], [groupField]: targetGroupValue };
+            });
+            return copy;
+          });
+          if (targetGroupValue != null) {
+            setGroupValues((current) => current.includes(String(targetGroupValue)) ? current : [...current, String(targetGroupValue)]);
+          }
+        }
+        const nextModel = { ...model, orderedRowKeys: nextOrder, reorderChangeset: buildReorderChangeset(nextOrder, baselineKeys) };
+        onRowReorder?.(nextModel);
+        return null;
+      });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finishDrag, { once: true });
+    window.addEventListener('pointercancel', finishDrag, { once: true });
+    dragCleanup.current = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', finishDrag);
+    };
+  };
+
+  const startGroupDrag = (groupKey: string, event: React.PointerEvent) => {
+    if (!allowGroupReorder || loading || internalLoading || !groupByColumns.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setGroupDragState({ key: groupKey, startY: event.clientY, active: false, targetKey: null, insertBefore: true });
+
+    const onMove = (moveEvent: PointerEvent) => {
+      setGroupDragState((current) => {
+        if (!current) return current;
+        const dy = Math.abs(moveEvent.clientY - current.startY);
+        const active = current.active || dy > 4;
+        const targetEl = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.('[data-group-key]') as HTMLElement | null;
+        const targetKey = targetEl?.dataset.groupKey ?? null;
+        const insertBefore = targetEl ? moveEvent.clientY < targetEl.getBoundingClientRect().top + targetEl.getBoundingClientRect().height / 2 : true;
+        return { ...current, active, targetKey, insertBefore };
+      });
+    };
+
+    const finishDrag = () => {
+      clearDragListeners();
+      setGroupDragState((current) => {
+        if (!current?.active || !current.targetKey || current.targetKey === current.key) return null;
+        const reorderedGroups = moveKeys(groupValues.length ? groupValues : groupedRows.map((group) => group.key), [current.key], current.targetKey!, current.insertBefore);
+        setGroupValues(reorderedGroups);
+        const nextOrder = reorderedGroups.flatMap((value) => orderedRows.filter((row) => String(row[groupByColumns[0]!] ?? 'Ungrouped') === value).map((row) => row.__key));
+        setOrderedKeys(nextOrder);
+        return null;
+      });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', finishDrag, { once: true });
+    window.addEventListener('pointercancel', finishDrag, { once: true });
+    dragCleanup.current = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', finishDrag);
+    };
+  };
+
+  const toggleSelection = (rowKey: string, additive: boolean) => {
+    setSelectedCell(null);
+    setSelectedKeys((current) => {
+      if (!multiSelectEnabled || !additive) {
+        onSelectRow?.(rowKey, rowsByKey[rowKey] ?? {});
+        return [rowKey];
+      }
+      if (current.includes(rowKey)) {
+        onDeselectRow?.(rowKey, rowsByKey[rowKey] ?? {});
+        return current.filter((key) => key !== rowKey);
+      }
+      onSelectRow?.(rowKey, rowsByKey[rowKey] ?? {});
+      return [...current, rowKey];
+    });
+  };
+
+  const commitEdit = (rowKey: string, field: string, rawValue: string) => {
+    if (!editable || disableEdits || loading || internalLoading) return;
+    const column = allColumns.find((item) => item.sourceKey === field);
+    if (!column) return;
+    const nextRow = { ...rowsByKey[rowKey], [field]: parseInputValue(rawValue, column) };
+    syncRow(rowKey, nextRow);
+    setEdits((current) => ({ ...current, [rowKey]: { ...(current[rowKey] ?? {}), [field]: nextRow[field] } }));
+  const cell: SelectedCell = { rowKey, columnKey: field, value: nextRow[field] };
+    setSelectedCell(cell);
+    onChangeCell?.(cell);
+  };
+
+  const updateArrayCell = (rowKey: string, field: string, nextValue: string[]) => {
+    if (!editable || disableEdits || loading || internalLoading) return;
+    const nextRow = { ...rowsByKey[rowKey], [field]: nextValue };
+    syncRow(rowKey, nextRow);
+    setEdits((current) => ({ ...current, [rowKey]: { ...(current[rowKey] ?? {}), [field]: nextValue } }));
+    const cell: SelectedCell = { rowKey, columnKey: field, value: nextValue };
+    setSelectedCell(cell);
+    onChangeCell?.(cell);
+  };
+
+  const availableOptionsForColumn = (column: TableColumn) => {
+    const values = Object.values(rowsByKey).flatMap((row) => {
+      const value = row[column.sourceKey];
+      if (Array.isArray(value)) return value.map(String);
+      if (value === null || value === undefined || value === '') return [];
+      return [String(value)];
+    });
+    return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
+  };
+
+  const openEditor = (rowKey: string, column: TableColumn, value: unknown, rect: DOMRect, point: { x: number; y: number }) => {
+    const format = (column.format ?? 'string').toLowerCase();
+    setActiveEditor({ rowKey, columnKey: column.sourceKey, rect, x: point.x, y: point.y });
+    setEditorPosition(null);
+    setEditorMultiText('');
+    if (format === 'multiple tags') {
+      setEditorSelections(Array.isArray(value) ? value.map(String) : []);
+      setEditorText('');
+      return;
+    }
+    setEditorSelections([]);
+    setEditorText(value === null || value === undefined ? '' : String(value));
+  };
+
+  const closeEditor = () => {
+    setActiveEditor(null);
+    setEditorPosition(null);
+    setEditorText('');
+    setEditorMultiText('');
+    setEditorSelections([]);
+  };
+
+  const startResize = (columnKey: string, event: React.PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const column = visibleColumns.find((item) => item.sourceKey === columnKey);
+    if (column?.resizable === false) return;
+    const startX = event.clientX;
+    const startWidth = columnWidths[columnKey] ?? column?.width ?? 160;
+    const onMove = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      setColumnWidths((current) => ({ ...current, [columnKey]: Math.max(80, startWidth + delta) }));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  };
+
+  const activeColumn = activeEditor ? allColumns.find((column) => column.sourceKey === activeEditor.columnKey) ?? null : null;
+  const activeValue = activeEditor ? rowsByKey[activeEditor.rowKey]?.[activeEditor.columnKey] : undefined;
+  const activeText = activeColumn ? formatCellText(activeValue, activeColumn) : '';
+
+  useEffect(() => {
+    if (!activeEditor || !tableRef.current || !editorPopoverRef.current) return;
+    const shellRect = tableRef.current.getBoundingClientRect();
+    const popoverRect = editorPopoverRef.current.getBoundingClientRect();
+    const gap = 8;
+    const desiredLeft = activeEditor.x - shellRect.left;
+    const belowTop = activeEditor.y - shellRect.top + gap;
+    const aboveTop = activeEditor.y - shellRect.top - popoverRect.height - gap;
+    const roomBelow = shellRect.bottom - activeEditor.y;
+    const roomAbove = activeEditor.y - shellRect.top;
+    const left = clamp(desiredLeft, 8, Math.max(8, shellRect.width - popoverRect.width - 8));
+    const top = roomBelow >= popoverRect.height + gap || roomBelow >= roomAbove
+      ? clamp(belowTop, 8, Math.max(8, shellRect.height - popoverRect.height - 8))
+      : clamp(aboveTop, 8, Math.max(8, shellRect.height - popoverRect.height - 8));
+    setEditorPosition((current) => current && current.left === left && current.top === top ? current : { left, top });
+  }, [activeEditor, editorText, editorMultiText, editorSelections, activeColumn]);
+
+  const editorStyle = editorPosition ? { left: `${editorPosition.left}px`, top: `${editorPosition.top}px` } : undefined;
+
+  const addRow = (position: 'top' | 'bottom' | 'after') => {
+    if (disableAddRow || loading || internalLoading) return;
+    const blank: RowData = {};
+    visibleColumns.forEach((column) => { blank[column.sourceKey] = column.format === 'multiple tags' ? [] : ''; });
+    if (groupByColumns.length) {
+      const field = groupByColumns[0]!;
+      const activeGroup = selectedKeys.length === 1 ? String(rowsByKey[selectedKeys[0]!]?.[field] ?? '') : groupValues[0] ?? 'Ungrouped';
+      blank[field] = activeGroup;
+    }
+    const key = `new_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const rowsCopy = { ...rowsByKey, [key]: blank };
+    setRowsByKey(rowsCopy);
+    setNewRows((current) => [...current, blank]);
+    onClickAction?.(`add-${position}`);
+    if (position === 'top') setOrderedKeys((current) => [key, ...current]);
+    else if (position === 'after' && selectedKeys.length === 1) setOrderedKeys((current) => {
+      const index = current.indexOf(selectedKeys[0]!);
+      const next = [...current];
+      next.splice(index + 1, 0, key);
+      return next;
+    });
+    else setOrderedKeys((current) => [...current, key]);
+  };
+
+  const clearChanges = () => {
+    setRowsByKey(Object.fromEntries(initialRows.map((row, index) => [createRowKey(row, primaryKey, indexColumn, index), { ...row }])));
+    setOrderedKeys(initialRows.map((row, index) => createRowKey(row, primaryKey, indexColumn, index)));
+    setSelectedKeys([]);
+    setSelectedCell(null);
+    setEdits({});
+    setNewRows([]);
+    setBaselineKeys(initialRows.map((row, index) => createRowKey(row, primaryKey, indexColumn, index)));
+    onCancel?.();
+  };
+
+  const save = async () => {
+    if (disableSave || loading || internalLoading) return;
+    setInternalLoading(true);
+    try {
+      await onSave?.(model);
+      setEdits({});
+      setNewRows([]);
+      setBaselineKeys(orderedKeys);
+    } finally {
+      setInternalLoading(false);
+    }
+  };
+
+  const themeVars = {
+    '--rdt-primary': theme?.primary ?? DEFAULT_THEME.primary,
+    '--rdt-secondary': theme?.secondary ?? DEFAULT_THEME.secondary,
+    '--rdt-tertiary': theme?.tertiary ?? DEFAULT_THEME.tertiary,
+    '--rdt-danger': theme?.danger ?? DEFAULT_THEME.danger,
+    '--rdt-highlight': theme?.highlight ?? DEFAULT_THEME.highlight,
+    '--rdt-canvas': theme?.canvas ?? DEFAULT_THEME.canvas,
+    '--rdt-surface': theme?.surfacePrimary ?? DEFAULT_THEME.surfacePrimary,
+    '--rdt-surface-2': theme?.surfaceSecondary ?? DEFAULT_THEME.surfaceSecondary,
+    '--rdt-border': theme?.surfacePrimaryBorder || hexToRgba(theme?.primary, 0.18, DEFAULT_THEME.surfacePrimaryBorder),
+    '--rdt-border-2': theme?.surfaceSecondaryBorder || hexToRgba(theme?.secondary ?? theme?.primary, 0.14, DEFAULT_THEME.surfaceSecondaryBorder),
+    '--rdt-text': theme?.textDark ?? DEFAULT_THEME.textDark,
+    '--rdt-text-soft': theme?.textLight ?? DEFAULT_THEME.textLight,
+    '--rdt-radius': theme?.borderRadius ?? DEFAULT_THEME.borderRadius,
+    '--rdt-font': fontFamilyValue(theme?.defaultFont, DEFAULT_THEME.defaultFont),
+    '--rdt-label-font': fontFamilyValue(theme?.labelFont, DEFAULT_THEME.labelFont),
+    '--rdt-label-weight': fontWeightValue(theme?.labelEmphasizedFont ?? theme?.labelFont, 700),
+    '--rdt-label-size': fontSizeValue(theme?.labelFont, '12px'),
+    '--rdt-low': theme?.lowElevation ?? DEFAULT_THEME.lowElevation,
+    '--rdt-medium': theme?.mediumElevation ?? DEFAULT_THEME.mediumElevation,
+    '--rdt-high': theme?.highElevation ?? DEFAULT_THEME.highElevation,
+    '--rdt-primary-soft': hexToRgba(theme?.primary, 0.12, 'rgba(37, 99, 235, 0.12)'),
+    '--rdt-primary-strong': hexToRgba(theme?.primary, 0.22, 'rgba(37, 99, 235, 0.22)'),
+    '--rdt-selected': hexToRgba(theme?.highlight ?? theme?.primary, 0.24, 'rgba(219, 234, 254, 0.95)'),
+    '--rdt-hover': hexToRgba(theme?.surfaceSecondary ?? theme?.primary, 0.18, 'rgba(248, 250, 252, 0.98)'),
+    '--rdt-overlay': hexToRgba(theme?.canvas ?? theme?.surfaceSecondary ?? theme?.primary, 0.66, 'rgba(226, 232, 240, 0.66)'),
+    '--rdt-row-height': rowHeight === 'extra small' ? '20px' : rowHeight === 'small' ? '32px' : rowHeight === 'medium' ? '48px' : rowHeight === 'large' ? '64px' : 'auto',
+    '--rdt-row-pad-y': rowHeight === 'dynamic' ? '8px' : '0px',
+    '--rdt-row-font': rowHeight === 'extra small' ? '12px' : rowHeight === 'small' ? '13px' : rowHeight === 'medium' ? '13px' : rowHeight === 'large' ? '14px' : '13px',
+    '--rdt-row-line': rowHeight === 'dynamic' ? '1.35' : '1.2',
+    height: '100%',
+    maxHeight: '100%',
+    ...themeStyles,
+  } as React.CSSProperties;
+
+  return (
+    <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={0} onFocus={onFocus} onBlur={onBlur}>
+      <div className={styles.headerBar}>
+        <div className={styles.headerTitleWrap}>
+          {showTitle ? <div className={styles.headerTitle}>{title}</div> : null}
+          <div className={styles.headerMeta}>{orderedRows.length} rows</div>
+          {showSavePrompt && isDirty && <div className={styles.dirtyBadge}>Unsaved changes</div>}
+        </div>
+        {addRowPosition === 'top' && <div className={styles.headerActions}>
+          {saveVisible && (
+            <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}>
+              <ToolbarIcon kind="save" />
+            </button>
+          )}
+          <button className={styles.iconButton} title="Cancel" aria-label="Cancel" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}>
+            <ToolbarIcon kind="cancel" />
+          </button>
+          {addRowPosition === 'top' && !disableAddRow && (
+            <>
+              <button className={styles.iconButton} title="Add top" aria-label="Add top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
+                <ToolbarIcon kind="add-top" />
+              </button>
+              <button className={styles.iconButton} title="Add bottom" aria-label="Add bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
+                <ToolbarIcon kind="add-bottom" />
+              </button>
+              <button className={styles.iconButton} title="Add after selected" aria-label="Add after selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
+                <ToolbarIcon kind="add-after" />
+              </button>
+            </>
+          )}
+        </div>}
+      </div>
+
+      {loading || internalLoading ? <div className={styles.loadingOverlay}><div className={styles.loaderSpinner} aria-hidden="true" /></div> : null}
+
+      <div className={styles.tableWrap} data-row-height={rowHeight} data-sticky-header={stickyHeader}>
+        {orderedRows.length ? (
+          <table className={styles.table}>
+            {showHeader ? <thead>
+              <tr>
+                <th className={styles.handleCol} />
+                {multiSelectEnabled && <th className={styles.checkboxCol} />}
+                <th className={styles.indexCol}>ID</th>
+                {visibleColumns.map((column) => (
+                  <th key={column.sourceKey} style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} title={column.description}>
+                    <div className={styles.headerCellInner}>
+                      <span>{column.label ?? column.sourceKey}</span>
+                      {column.resizable !== false ? <button className={styles.resizeHandle} aria-label={`Resize ${column.label ?? column.sourceKey}`} onPointerDown={(event) => startResize(column.sourceKey, event)} /> : null}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead> : null}
+            <tbody>
+              {groupedRows.map((group) => (
+                <React.Fragment key={group.key}>
+                  {group.label && (
+                    <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.key}>
+                      <td colSpan={visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0)}>
+                        <div className={styles.groupChipWrap}>
+                          {allowGroupReorder ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.label}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : null}
+                          <div className={styles.groupChip}>{group.label}<span>{group.rows.length}</span></div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {group.label && group.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0)}>
+                        <div data-group-drop-zone={group.key} className={`${styles.emptyGroupDropZone} ${dropTarget?.groupKey === group.key ? (dropTarget.invalid ? styles.invalidDropZone : styles.activeDropZone) : ''}`}>Drop rows into {group.label}</div>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {group.rows.map((row, displayIndex) => {
+                    const rowKey = row.__key as string;
+                    const isSelected = selectedKeys.includes(rowKey);
+                    const isNew = newRows.includes(rowsByKey[rowKey]);
+                    const isDirtyRow = isNew || Boolean(edits[rowKey]);
+                    const isDropBefore = dropTarget?.key === rowKey && dropTarget.before;
+                    const isDropAfter = dropTarget?.key === rowKey && !dropTarget.before;
+                    const isInvalidDrop = dropTarget?.key === rowKey && dropTarget.invalid;
+                    return (
+                      <tr key={rowKey} data-row-key={rowKey} className={`${isSelected ? styles.selectedRow : ''} ${isDirtyRow ? styles.dirtyRow : ''} ${dragState?.rowKey === rowKey ? styles.draggingRow : ''} ${isDropBefore ? styles.dropBefore : ''} ${isDropAfter ? styles.dropAfter : ''} ${isInvalidDrop ? styles.invalidDrop : ''}`} onClick={(event) => { onRowClick?.(rowKey, row); toggleSelection(rowKey, event.metaKey || event.ctrlKey || event.shiftKey); }} onDoubleClick={() => onDoubleClickRow?.(rowKey, row)}>
+                        <td className={styles.handleCell}>
+                          <button className={styles.handleButton} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
+                        </td>
+                        {multiSelectEnabled && <td className={styles.checkboxCell}><label className={styles.checkboxWrap}><input type="checkbox" checked={isSelected} onChange={() => toggleSelection(rowKey, true)} onClick={(event) => event.stopPropagation()} /><span className={styles.checkboxUi} aria-hidden="true" /></label></td>}
+                        <td className={styles.indexCell}>{displayIndex}</td>
+                        {visibleColumns.map((column) => {
+                          const value = row[column.sourceKey];
+                          const text = formatCellText(value, column);
+                          const editableCell = editable && !disableEdits && column.editable !== false && isEditableFormat(column.format) && !loading && !internalLoading && !column.hidden;
+                          return (
+                            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell) openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
+                              <div className={styles.cellInner}>
+                                <CellRenderer column={column} value={value} row={row} text={text} />
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className={styles.emptyState}>{emptyMessage}</div>
+        )}
+        {addRowPosition === 'bottom' && (
+          <div className={styles.bottomBar}>
+            {saveVisible && <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}><ToolbarIcon kind="save" /></button>}
+            <button className={styles.iconButton} title="Cancel changes" aria-label="Cancel changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}><ToolbarIcon kind="cancel" /></button>
+            {!disableAddRow && <>
+            <button className={styles.iconButton} title="Add top" aria-label="Add top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
+              <ToolbarIcon kind="add-top" />
+            </button>
+            <button className={styles.iconButton} title="Add bottom" aria-label="Add bottom" onClick={() => { onClickToolbar?.('add-bottom'); addRow('bottom'); }} disabled={loading || internalLoading}>
+              <ToolbarIcon kind="add-bottom" />
+            </button>
+            <button className={styles.iconButton} title="Add after selected" aria-label="Add after selected" onClick={() => { onClickToolbar?.('add-after'); addRow('after'); }} disabled={loading || internalLoading || selectedKeys.length !== 1}>
+              <ToolbarIcon kind="add-after" />
+            </button>
+            </>}
+          </div>
+        )}
+      </div>
+      {activeEditor && activeColumn ? (
+        <div className={styles.editorLayer}>
+          <div ref={editorPopoverRef} className={styles.editorPopover} style={editorStyle} onDoubleClick={(event) => event.stopPropagation()}>
+            <EditorPopover
+              column={activeColumn}
+              value={activeValue}
+              text={activeText}
+              editorText={editorText}
+              editorMultiText={editorMultiText}
+              editorSelections={editorSelections}
+              options={availableOptionsForColumn(activeColumn)}
+              onChangeText={setEditorText}
+              onChangeMultiText={setEditorMultiText}
+              onChangeSelections={setEditorSelections}
+              onCommitText={(next) => { commitEdit(activeEditor.rowKey, activeEditor.columnKey, next); closeEditor(); }}
+              onCommitArray={(next) => { updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, next); }}
+              onClose={closeEditor}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData; text: string }> = ({ column, value, row, text }) => {
+  const format = (column.format ?? 'string').toLowerCase();
+  if (format === 'avatar') {
+    const email = String(row.email ?? row.owner ?? '');
+    return (
+      <div className={styles.userCell}>
+        <div className={styles.avatar}>{initials(value || text)}</div>
+        <div className={styles.userMeta}>
+          <div className={styles.userName}>{text}</div>
+          {email ? <div className={styles.userSub}>{email}</div> : null}
+        </div>
+      </div>
+    );
+  }
+  if (format === 'tag') {
+    const label = text;
+    return <span className={styles.tag} style={{ background: chipColor(label), color: chipTextColor(label) }}>{label}</span>;
+  }
+  if (format === 'multiple tags') {
+    const tags = Array.isArray(value) ? value.map(String) : text.split(',').map((item) => item.trim()).filter(Boolean);
+    return <div className={styles.tags}>{tags.map((tag) => <span key={tag} className={styles.tag} style={{ background: chipColor(tag), color: chipTextColor(tag) }}>{tag}</span>)}</div>;
+  }
+  if (format === 'boolean') {
+    return (
+      <span className={styles.booleanCheckbox} data-checked={Boolean(value)} aria-label={value ? 'True' : 'False'}>
+        <span className={styles.checkboxUi} aria-hidden="true" />
+      </span>
+    );
+  }
+  if (format === 'link') {
+    return <a className={styles.link} href={String(value ?? '#')} target="_blank" rel="noreferrer">{text}</a>;
+  }
+  if (format === 'email') {
+    return <a className={styles.link} href={`mailto:${String(value ?? '')}`}>{text}</a>;
+  }
+  if (format === 'json') {
+    return <span className={styles.json}>{text}</span>;
+  }
+  if (format === 'markdown') {
+    return <span className={styles.markdown}>{text}</span>;
+  }
+  if (format === 'progress') {
+    const percent = Number(value ?? 0);
+    return <div className={styles.progress}><div className={styles.progressBar} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} /></div>;
+  }
+  return <span className={styles.textCell}>{text}</span>;
+};
+
+const EditorPopover: React.FC<{
+  column: TableColumn;
+  value: unknown;
+  text: string;
+  editorText: string;
+  editorMultiText: string;
+  editorSelections: string[];
+  options: string[];
+  onChangeText: (next: string) => void;
+  onChangeMultiText: (next: string) => void;
+  onChangeSelections: (next: string[]) => void;
+  onCommitText: (next: string) => void;
+  onCommitArray: (next: string[]) => void;
+  onClose: () => void;
+}> = ({ column, value, text, editorText, editorMultiText, editorSelections, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitArray, onClose }) => {
+  const format = (column.format ?? 'string').toLowerCase();
+  const tagOptions = Array.from(new Set([...(Array.isArray(value) ? value.map(String) : []), ...options, text].flatMap((item) => String(item).split(',').map((entry) => entry.trim()).filter(Boolean))));
+
+  if (format === 'boolean') {
+    return (
+      <div className={styles.editorOptionList}>
+        {[{ key: 'true', label: 'True' }, { key: 'false', label: 'False' }].map((option) => {
+          const selected = String(Boolean(value)) === option.key;
+          return (
+            <button key={option.key} type="button" className={`${styles.editorOption} ${selected ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option.key)}>
+              <span className={styles.editorCheckboxRow}>
+                <span className={styles.booleanCheckbox} data-checked={selected}><span className={styles.checkboxUi} aria-hidden="true" /></span>
+                <span>{option.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (format === 'date' || format === 'date time') {
+    return (
+      <input
+        className={styles.editorInput}
+        type={format === 'date' ? 'date' : 'datetime-local'}
+        value={editorText}
+        onChange={(event) => onChangeText(event.target.value)}
+        onBlur={() => onCommitText(editorText)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }}
+        autoFocus
+      />
+    );
+  }
+
+  if (format === 'multiple tags') {
+    const tags = editorSelections;
+    const orderedTagOptions = Array.from(new Set([...options, ...tags, ...text.split(',').map((item) => item.trim()).filter(Boolean)]));
+    return (
+      <>
+        <div className={styles.editorSelectedRow}>
+          {tags.map((tag) => (
+            <span key={tag} className={styles.multiTagChip} style={{ background: chipColor(tag), color: chipTextColor(tag) }}>
+              {tag}
+              <button type="button" className={styles.multiTagRemove} aria-label={`Remove ${tag}`} onClick={() => { const next = tags.filter((item) => item !== tag); onChangeSelections(next); onCommitArray(next); }}>×</button>
+            </span>
+          ))}
+        </div>
+        <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            const next = editorMultiText.trim();
+            if (!next) return;
+            const updated = Array.from(new Set([...tags, next]));
+            onChangeSelections(updated);
+            onCommitArray(updated);
+            onChangeMultiText('');
+          }
+          if (event.key === 'Escape') onClose();
+        }} autoFocus />
+        <div className={styles.editorOptionList}>
+          {orderedTagOptions.map((option) => {
+            const selected = tags.includes(option);
+            return <button key={option} type="button" className={`${styles.editorOption} ${selected ? styles.editorOptionSelected : ''}`} onClick={() => {
+              const next = selected ? tags.filter((item) => item !== option) : [...tags, option];
+              onChangeSelections(next);
+              onCommitArray(next);
+            }}><span className={styles.editorCheckboxRow}><span className={styles.booleanCheckbox} data-checked={selected}><span className={styles.checkboxUi} aria-hidden="true" /></span><span>{option}</span></span></button>;
+          })}
+        </div>
+      </>
+    );
+  }
+
+  if (format === 'tag') {
+    return (
+      <>
+        <input className={styles.editorInput} value={editorText} placeholder="Set value" onChange={(event) => onChangeText(event.target.value)} onKeyDown={(event) => {
+          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }} autoFocus />
+        <div className={styles.editorOptionList}>
+          {tagOptions.map((option) => (
+            <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  if (format === 'email') {
+    return (
+      <input
+        className={styles.editorInput}
+        type="email"
+        value={editorText}
+        onChange={(event) => onChangeText(event.target.value)}
+        onBlur={() => onCommitText(editorText)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }}
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <>
+      <input
+        className={styles.editorInput}
+        value={editorText}
+        onChange={(event) => onChangeText(event.target.value)}
+        onBlur={() => onCommitText(editorText)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }}
+        autoFocus
+      />
+    </>
+  );
+};

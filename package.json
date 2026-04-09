@@ -1,0 +1,37 @@
+{
+  "name": "retool-draggable-table",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "retool:login": "npx retool-ccl login",
+    "retool:init": "npx retool-ccl init",
+    "retool:dev": "npx retool-ccl dev",
+    "retool:deploy": "npx retool-ccl deploy"
+  },
+  "dependencies": {
+    "@tryretool/custom-component-support": "latest",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.1"
+  },
+  "retoolCustomComponentLibraryConfig": {
+    "name": "DraggableTableV2",
+    "label": "Draggable Table v2",
+    "description": "A Retool-style table for reorder-heavy workflows with drag-handle row movement, inline editing, selection, grouping, save state, and clean theme-aware rendering.",
+    "entryPoint": "src/index.tsx",
+    "outputPath": "dist"
+  }
+}

@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drag-Reorder Table — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── TOKENS ─── */
+:root {
+  --bg:          #f0f1f3;
+  --surface:     #ffffff;
+  --surface-2:   #f8f9fa;
+  --border:      #e4e6ea;
+  --border-2:    #d0d3d9;
+  --text:        #111318;
+  --text-sub:    #5a5f6b;
+  --text-muted:  #9097a3;
+  --primary:     #e07c2b;
+  --primary-dk:  #c4681e;
+  --primary-bg:  #fff3ea;
+  --primary-bdr: #f5c59a;
+  --sel-bg:      #f0f7ff;
+  --sel-bdr:     #bdd7f9;
+  --grp-bg:      #f5f6f8;
+  --mono:        'IBM Plex Mono', monospace;
+  --sans:        'DM Sans', sans-serif;
+  --radius:      6px;
+  --radius-sm:   4px;
+  --sh:          0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --sh-md:       0 4px 12px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
+}
+
+/* ─── RESET ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 13px; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── SETTINGS BAR ─── */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 48px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: var(--sh);
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.topbar-title {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -.01em;
+  color: var(--text);
+  padding-right: 12px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.topbar-title svg { color: var(--primary); }
+
+.sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 6px;
+}
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.ctrl-label {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+/* Toggle */
+.tog { display: inline-flex; align-items: center; cursor: pointer; }
+.tog input { display: none; }
+.tog-track {
+  width: 32px; height: 18px;
+  background: var(--border-2);
+  border-radius: 9px;
+  position: relative;
+  transition: background .18s;
+}
+.tog input:checked + .tog-track { background: var(--primary); }
+.tog-thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left .18s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.tog input:checked ~ .tog-track .tog-thumb { left: 16px; }
+
+/* Select */
+.ctrl-select {
+  height: 26px;
+  padding: 0 22px 0 7px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239097a3' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  font-weight: 500;
+  transition: border-color .15s;
+}
+.ctrl-select:hover { border-color: var(--border-2); }
+.ctrl-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-bg); }
+
+/* Button */
+.btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-sub);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn:hover { border-color: var(--text-muted); color: var(--text); }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dk); border-color: var(--primary-dk); color: white; }
+
+/* Disabled ctrl group */
+.ctrl-group.disabled { opacity: .35; pointer-events: none; }
+
+/* ─── MAIN ─── */
+.main {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 1060px;
+  width: 100%;
+  align-self: center;
+}
+
+/* ─── TABLE CARD ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--sh);
+  overflow: hidden;
+}
+
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-count-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 1px 7px;
+  border-radius: 99px;
+}
+
+.dirty-pill {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.dirty-pill.show { display: inline-flex; }
+.dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+
+.card-actions { display: flex; gap: 6px; align-items: center; }
+
+/* Hint strip */
+.hint-strip {
+  padding: 6px 14px;
+  background: var(--primary-bg);
+  border-bottom: 1px solid var(--primary-bdr);
+  font-size: 11.5px;
+  color: var(--primary-dk);
+  display: none;
+}
+.hint-strip.show { display: block; }
+
+/* ─── TABLE ─── */
+.table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+colgroup col { }
+
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+thead tr {
+  background: var(--grp-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  padding: 7px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+th.c-handle  { width: 36px; padding: 7px 4px 7px 10px; }
+th.c-check   { width: 34px; padding: 7px 4px; }
+th.c-idx     { width: 44px; }
+th.c-name    { }
+th.c-status  { width: 128px; }
+th.c-pri     { width: 100px; }
+th.c-who     { width: 124px; }
+th.c-group   { width: 112px; }
+
+/* Data rows */
+tbody tr.row {
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  position: relative;
+  transition: background .1s;
+}
+tbody tr.row:last-child { border-bottom: none; }
+tbody tr.row:hover { background: var(--surface-2); }
+tbody tr.row.selected { background: var(--sel-bg); }
+tbody tr.row.selected:hover { background: #e7f2ff; }
+tbody tr.row.dragging-src { opacity: .35; }
+
+td {
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--text);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Handle cells */
+td.c-handle {
+  padding: 9px 4px 9px 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+td.c-handle .handle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  color: #c5c9d0;
+  font-size: 15px;
+  line-height: 1;
+  cursor: grab;
+  transition: color .12s, background .12s;
+  user-select: none;
+}
+td.c-handle .handle-icon:active { cursor: grabbing; }
+td.c-handle .handle-icon:hover { color: var(--text-sub); background: var(--surface-2); }
+
+/* Handle on-hover mode: hide by default */
+.handles-on-hover td.c-handle .handle-icon { opacity: 0; pointer-events: none; }
+.handles-on-hover tr.row:hover td.c-handle .handle-icon,
+.handles-on-hover tr.group-hdr:hover td.c-handle .handle-icon { opacity: 1; pointer-events: auto; }
+
+td.c-check { padding: 9px 4px; }
+td.c-check input { cursor: pointer; accent-color: var(--primary); width: 13px; height: 13px; }
+td.c-idx { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+td.c-name { font-weight: 500; }
+
+/* Group header */
+tr.group-hdr {
+  background: var(--grp-bg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+  position: relative;
+}
+tr.group-hdr:first-child { border-top: none; }
+tr.group-hdr.dragging-src { opacity: .35; }
+
+tr.group-hdr td { padding: 6px 12px; }
+tr.group-hdr td.c-handle { padding: 6px 4px 6px 10px; }
+
+.grp-label-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grp-chevron {
+  display: inline-flex;
+  width: 16px; height: 16px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 3px;
+  font-size: 10px;
+  transition: background .12s, transform .15s;
+  flex-shrink: 0;
+}
+.grp-chevron:hover { background: var(--border); }
+.grp-chevron.closed { transform: rotate(-90deg); }
+
+.grp-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+  letter-spacing: .01em;
+}
+
+.grp-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--border);
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+
+.grp-drag-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity .15s;
+}
+tr.group-hdr:hover .grp-drag-hint { opacity: 1; }
+
+/* Drop indicators */
+tr.drop-above td { box-shadow: inset 0 3px 0 0 var(--primary) !important; }
+tr.drop-below td { box-shadow: inset 0 -3px 0 0 var(--primary) !important; }
+tr.drop-into {
+  background: var(--primary-bg) !important;
+  outline: 1px dashed var(--primary);
+  outline-offset: -2px;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+.s-done     { background: #dcfce7; color: #16a34a; }
+.s-done     .badge-dot { background: #16a34a; }
+.s-progress { background: #dbeafe; color: #1d4ed8; }
+.s-progress .badge-dot { background: #3b82f6; }
+.s-todo     { background: var(--surface-2); color: var(--text-sub); }
+.s-todo     .badge-dot { background: #adb5c0; }
+
+.p-high   { background: #fee2e2; color: #dc2626; }
+.p-high   .badge-dot { background: #dc2626; }
+.p-medium { background: #fef3c7; color: #b45309; }
+.p-medium .badge-dot { background: #f59e0b; }
+.p-low    { background: var(--surface-2); color: var(--text-sub); }
+.p-low    .badge-dot { background: #adb5c0; }
+
+/* Avatar */
+.ava {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.ava-circle {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: .02em;
+}
+.ava span { overflow: hidden; text-overflow: ellipsis; }
+
+/* Group tag (ungrouped view) */
+.grp-tag {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* Empty group */
+tr.grp-empty td {
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--grp-bg);
+}
+tr.grp-empty.drop-into td { background: var(--primary-bg); color: var(--primary-dk); font-style: normal; }
+
+/* Row highlight after drop */
+@keyframes row-flash {
+  0%   { background-color: var(--primary-bg); }
+  100% { background-color: transparent; }
+}
+tr.just-moved { animation: row-flash .7s ease-out; }
+
+/* ─── STATE PANEL ─── */
+.state-panel {
+  background: #141820;
+  color: #cdd6f4;
+  border-top: 1px solid #2a3042;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+
+.state-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 16px;
+  background: #0d1117;
+  border-bottom: 1px solid #2a3042;
+  cursor: pointer;
+  user-select: none;
+}
+.state-header:hover { background: #111827; }
+.state-h-label { font-size: 10.5px; color: #7c8faa; text-transform: uppercase; letter-spacing: .07em; font-weight: 500; }
+.state-h-chevron { color: #4a5568; font-size: 10px; transition: transform .2s; }
+.state-h-chevron.open { transform: rotate(180deg); }
+
+.state-body {
+  display: none;
+  flex-direction: row;
+  overflow: auto;
+  max-height: 220px;
+}
+.state-body.open { display: flex; }
+
+.state-col {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 16px;
+  border-right: 1px solid #2a3042;
+}
+.state-col:last-child { border-right: none; }
+.state-col-title { font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+.state-line { margin-bottom: 6px; line-height: 1.5; word-break: break-all; }
+.sk { color: #89b4fa; }
+.sv { color: #a6e3a1; }
+.sn { color: #f38ba8; }
+.sp { color: #fab387; }
+
+/* Drag ghost (off-screen) */
+#drag-ghost {
+  position: fixed;
+  top: -200px; left: -200px;
+  background: var(--surface);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  box-shadow: var(--sh-md);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Instructions card */
+.info-card {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--sh);
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+.info-section { display: flex; flex-direction: column; gap: 4px; }
+.info-title { font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.info-row { display: flex; align-items: center; gap: 6px; }
+kbd {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- drag ghost element -->
+<div id="drag-ghost"></div>
+
+<!-- ─── TOPBAR ─── -->
+<div class="topbar">
+  <div class="topbar-title">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    Table Reorder
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">Reorder</span>
+    <label class="tog">
+      <input type="checkbox" id="s-reorder" checked>
+      <span class="tog-track"><span class="tog-thumb"></span></span>
+    </label>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">Grouped</span>
+    <label class="tog">
+      <input type="checkbox" id="s-grouped">
+      <span class="tog-track"><span class="tog-thumb"></span></span>
+    </label>
+  </div>
+
+  <div class="sep"></div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">Selection</span>
+    <select class="ctrl-select" id="s-selection">
+      <option value="none">None</option>
+      <option value="single" selected>Single</option>
+      <option value="multiple">Multiple</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group">
+    <span class="ctrl-label">Handle</span>
+    <select class="ctrl-select" id="s-handle">
+      <option value="always" selected>Always</option>
+      <option value="hover">On hover</option>
+    </select>
+  </div>
+
+  <div class="ctrl-group" id="sg-multidrag">
+    <span class="ctrl-label">Multi-row drag</span>
+    <label class="tog">
+      <input type="checkbox" id="s-multidrag">
+      <span class="tog-track"><span class="tog-thumb"></span></span>
+    </label>
+  </div>
+
+  <div class="sep"></div>
+
+  <button class="btn" id="btn-reset">↺ Reset</button>
+  <button class="btn" id="btn-state">State panel</button>
+</div>
+
+<!-- ─── MAIN ─── -->
+<div class="main">
+
+  <!-- info card -->
+  <div class="info-card" id="info-card">
+    <div class="info-section">
+      <div class="info-title">Row drag</div>
+      <div class="info-row">Grab <kbd>⠿</kbd> on a row — drop anywhere to reorder</div>
+      <div class="info-row" id="info-group-row" style="display:none">Drop onto a <strong>different group</strong> to move the row there</div>
+    </div>
+    <div class="info-section" id="info-group-sec" style="display:none">
+      <div class="info-title">Group drag</div>
+      <div class="info-row">Grab <kbd>⠿</kbd> on a group header to reorder groups</div>
+    </div>
+    <div class="info-section" id="info-multi-sec" style="display:none">
+      <div class="info-title">Multi-row</div>
+      <div class="info-row"><kbd>Click</kbd> or <kbd>⌘Click</kbd> to select rows, then drag any selected row</div>
+    </div>
+    <div class="info-section">
+      <div class="info-title">Selection</div>
+      <div class="info-row"><kbd>Click</kbd> row to select &nbsp; <kbd>⌘/Ctrl+Click</kbd> to multi-select &nbsp; <kbd>Shift+Click</kbd> range</div>
+    </div>
+  </div>
+
+  <!-- table card -->
+  <div class="card">
+    <div class="card-toolbar">
+      <div class="card-title">
+        <span>Tasks</span>
+        <span class="row-count-badge" id="row-count">11 rows</span>
+        <span class="dirty-pill" id="dirty-pill"><span class="dirty-dot"></span>Unsaved order</span>
+      </div>
+      <div class="card-actions">
+        <span id="sel-summary" style="font-size:11.5px;color:var(--text-muted);font-family:var(--mono);"></span>
+        <button class="btn" id="btn-clear-sel" style="display:none">Clear selection</button>
+      </div>
+    </div>
+    <div class="hint-strip" id="hint-strip">
+      ⚠️ Sorting, filtering, and search are disabled while Reorder mode is on.
+    </div>
+    <div class="table-wrap" id="table-wrap">
+      <table id="main-table">
+        <colgroup id="col-group"></colgroup>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── STATE PANEL ─── -->
+<div class="state-panel" id="state-panel">
+  <div class="state-header" id="state-header">
+    <span class="state-h-label">📊 Live State Output</span>
+    <span class="state-h-chevron" id="state-chevron">▲</span>
+  </div>
+  <div class="state-body" id="state-body"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   MOCK DATA
+═══════════════════════════════════════════════════ */
+
+const AVA_COLORS = { Alice:'#6366f1', Bob:'#0ea5e9', Carol:'#10b981', Dave:'#f59e0b', Eve:'#ec4899', Frank:'#8b5cf6' };
+
+const SEED = [
+  { id:1,  name:'Create brand guidelines',    status:'Done',        priority:'High',   assignee:'Alice', group:'Design'      },
+  { id:2,  name:'Design system components',   status:'In Progress', priority:'High',   assignee:'Alice', group:'Design'      },
+  { id:3,  name:'Mobile app mockups',         status:'In Progress', priority:'Medium', assignee:'Bob',   group:'Design'      },
+  { id:4,  name:'User research report',       status:'Todo',        priority:'Low',    assignee:'Bob',   group:'Design'      },
+  { id:5,  name:'API endpoint design',        status:'Done',        priority:'High',   assignee:'Carol', group:'Engineering' },
+  { id:6,  name:'Database schema review',     status:'In Progress', priority:'High',   assignee:'Dave',  group:'Engineering' },
+  { id:7,  name:'Write unit tests',           status:'Todo',        priority:'Medium', assignee:'Carol', group:'Engineering' },
+  { id:8,  name:'Performance optimization',   status:'Todo',        priority:'Low',    assignee:'Dave',  group:'Engineering' },
+  { id:9,  name:'Q4 campaign planning',       status:'In Progress', priority:'High',   assignee:'Eve',   group:'Marketing'   },
+  { id:10, name:'Social media calendar',      status:'Todo',        priority:'Medium', assignee:'Eve',   group:'Marketing'   },
+  { id:11, name:'Email newsletter draft',     status:'Done',        priority:'Low',    assignee:'Frank', group:'Marketing'   },
+];
+const SEED_GROUPS = ['Design','Engineering','Marketing'];
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+
+let rows        = SEED.map(r => ({...r}));
+let groupOrder  = [...SEED_GROUPS];
+let collapsed   = new Set();
+let selected    = new Set();
+let isDirty     = false;
+let lastChangeset = [];
+let statePanelOpen = false;
+
+const S = { reorderEnabled:true, grouped:false, selection:'single', handle:'always', multiDrag:false };
+
+// drag tracking
+let dragFromHandle = false;
+let dragSrc  = null; // { type:'row'|'group', rowIds:[], groupName:string|null }
+let dropEl   = null; // current element with drop indicator class
+
+document.addEventListener('mouseup', () => { dragFromHandle = false; });
+
+/* ═══════════════════════════════════════════════════
+   SETTINGS WIRING
+═══════════════════════════════════════════════════ */
+
+function initSettings() {
+  q('s-reorder').onchange  = e => { S.reorderEnabled = e.target.checked; render(); };
+  q('s-grouped').onchange  = e => { S.grouped = e.target.checked; render(); };
+  q('s-selection').onchange = e => { S.selection = e.target.value; selected.clear(); render(); };
+  q('s-handle').onchange   = e => { S.handle = e.target.value; render(); };
+  q('s-multidrag').onchange = e => { S.multiDrag = e.target.checked; };
+  q('btn-reset').onclick    = resetAll;
+  q('btn-state').onclick    = toggleState;
+  q('state-header').onclick = toggleState;
+  q('btn-clear-sel').onclick = () => { selected.clear(); render(); updateState(); };
+}
+
+function q(id) { return document.getElementById(id); }
+function qs(sel) { return document.querySelector(sel); }
+function qsa(sel) { return [...document.querySelectorAll(sel)]; }
+
+function resetAll() {
+  rows = SEED.map(r => ({...r}));
+  groupOrder = [...SEED_GROUPS];
+  collapsed.clear(); selected.clear();
+  isDirty = false; lastChangeset = [];
+  render(); updateState();
+}
+
+function toggleState() {
+  statePanelOpen = !statePanelOpen;
+  q('state-body').classList.toggle('open', statePanelOpen);
+  q('state-chevron').classList.toggle('open', statePanelOpen);
+  if (statePanelOpen) updateState();
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════════════ */
+
+function render() {
+  renderColGroup();
+  renderHead();
+  renderBody();
+  updateChrome();
+}
+
+function renderColGroup() {
+  const show = (c) => S.reorderEnabled || c !== 'handle';
+  let cols = '';
+  if (S.reorderEnabled)       cols += '<col style="width:36px">';
+  if (S.selection==='multiple') cols += '<col style="width:34px">';
+  cols += '<col style="width:44px">';
+  cols += '<col>';
+  cols += '<col style="width:128px">';
+  cols += '<col style="width:100px">';
+  cols += '<col style="width:124px">';
+  if (!S.grouped)             cols += '<col style="width:112px">';
+  q('col-group').innerHTML = cols;
+}
+
+function renderHead() {
+  let h = '<tr>';
+  if (S.reorderEnabled)       h += '<th class="c-handle"></th>';
+  if (S.selection==='multiple') h += '<th class="c-check"><input type="checkbox" id="chk-all" title="Select all"></th>';
+  h += '<th class="c-idx">#</th>';
+  h += '<th class="c-name">Name</th>';
+  h += '<th class="c-status">Status</th>';
+  h += '<th class="c-pri">Priority</th>';
+  h += '<th class="c-who">Assignee</th>';
+  if (!S.grouped) h += '<th class="c-group">Group</th>';
+  h += '</tr>';
+  q('thead').innerHTML = h;
+  if (S.selection==='multiple') {
+    q('chk-all').onchange = e => { rows.forEach(r => e.target.checked ? selected.add(r.id) : selected.delete(r.id)); render(); };
+  }
+}
+
+function renderBody() {
+  const tbody = q('tbody');
+  tbody.innerHTML = '';
+  // apply handle visibility class to table
+  q('main-table').classList.toggle('handles-on-hover', S.handle==='hover');
+
+  if (S.grouped) {
+    groupOrder.forEach(g => {
+      const gRows = rows.filter(r => r.group === g);
+      tbody.appendChild(buildGroupHdr(g, gRows.length));
+      if (!collapsed.has(g)) {
+        gRows.forEach((row, li) => tbody.appendChild(buildRow(row, rows.indexOf(row))));
+        if (gRows.length === 0) tbody.appendChild(buildEmptyGroup(g));
+      }
+    });
+  } else {
+    rows.forEach((row, i) => tbody.appendChild(buildRow(row, i)));
+  }
+
+  attachDrag();
+}
+
+/* ── GROUP HEADER ── */
+function buildGroupHdr(g, count) {
+  const tr = document.createElement('tr');
+  tr.className = 'group-hdr';
+  tr.dataset.group = g;
+  tr.setAttribute('draggable', 'true');
+
+  let html = '';
+  if (S.reorderEnabled) {
+    html += `<td class="c-handle"><span class="handle-icon" data-handle-group="${g}">⠿</span></td>`;
+  }
+  if (S.selection==='multiple') html += `<td class="c-check"></td>`;
+  html += `<td colspan="20">
+    <div class="grp-label-cell">
+      <span class="grp-chevron ${collapsed.has(g) ? 'closed' : ''}" data-chevron="${g}">▾</span>
+      <span class="grp-name">${esc(g)}</span>
+      <span class="grp-pill">${count}</span>
+      ${S.reorderEnabled ? '<span class="grp-drag-hint">drag to reorder group</span>' : ''}
+    </div>
+  </td>`;
+  tr.innerHTML = html;
+
+  // Collapse toggle
+  tr.querySelector(`[data-chevron="${g}"]`).addEventListener('click', e => {
+    e.stopPropagation();
+    collapsed.has(g) ? collapsed.delete(g) : collapsed.add(g);
+    render();
+  });
+
+  // Drag start (only from handle)
+  if (S.reorderEnabled) {
+    const handle = tr.querySelector(`[data-handle-group="${g}"]`);
+    handle.addEventListener('mousedown', () => { dragFromHandle = true; });
+    tr.addEventListener('dragstart', e => {
+      if (!dragFromHandle || !S.reorderEnabled) { e.preventDefault(); return; }
+      dragFromHandle = false;
+      dragSrc = { type:'group', rowIds:[], groupName:g };
+      tr.classList.add('dragging-src');
+      setGhost(`Group: ${g}`);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+  }
+
+  // Drop events
+  tr.addEventListener('dragover',  e => onDragOver(e, tr, 'group-hdr', null, g));
+  tr.addEventListener('dragleave', e => { if (!tr.contains(e.relatedTarget)) clearDrop(); });
+  tr.addEventListener('drop',      e => onDrop(e,  tr, 'group-hdr', null, g));
+
+  return tr;
+}
+
+/* ── DATA ROW ── */
+function buildRow(row, displayIdx) {
+  const tr = document.createElement('tr');
+  tr.className = 'row' + (selected.has(row.id) ? ' selected' : '');
+  tr.dataset.id = row.id;
+  tr.dataset.group = row.group;
+  tr.setAttribute('draggable', 'true');
+
+  let html = '';
+  if (S.reorderEnabled) {
+    html += `<td class="c-handle"><span class="handle-icon" data-handle-row="${row.id}">⠿</span></td>`;
+  }
+  if (S.selection==='multiple') {
+    html += `<td class="c-check"><input type="checkbox" data-chk="${row.id}" ${selected.has(row.id) ? 'checked' : ''}></td>`;
+  }
+  html += `<td class="c-idx">${displayIdx+1}</td>`;
+  html += `<td class="c-name">${esc(row.name)}</td>`;
+  html += `<td class="c-status">${statusBadge(row.status)}</td>`;
+  html += `<td class="c-pri">${priBadge(row.priority)}</td>`;
+  html += `<td class="c-who">${avaCell(row.assignee)}</td>`;
+  if (!S.grouped) html += `<td class="c-group"><span class="grp-tag">${esc(row.group)}</span></td>`;
+  tr.innerHTML = html;
+
+  // Selection
+  if (S.selection !== 'none') {
+    tr.addEventListener('click', e => {
+      if (e.target.closest('.handle-icon') || e.target.matches('input[type=checkbox]')) return;
+      handleSelect(row.id, e);
+    });
+  }
+  // Checkbox
+  if (S.selection==='multiple') {
+    tr.querySelector(`[data-chk="${row.id}"]`).addEventListener('change', ev => {
+      ev.target.checked ? selected.add(row.id) : selected.delete(row.id);
+      render(); updateState();
+    });
+  }
+
+  // Drag start
+  if (S.reorderEnabled) {
+    const handle = tr.querySelector(`[data-handle-row="${row.id}"]`);
+    handle.addEventListener('mousedown', () => { dragFromHandle = true; });
+    tr.addEventListener('dragstart', e => {
+      if (!dragFromHandle || !S.reorderEnabled) { e.preventDefault(); return; }
+      dragFromHandle = false;
+      const ids = (S.multiDrag && S.selection==='multiple' && selected.has(row.id) && selected.size > 1)
+        ? [...selected] : [row.id];
+      dragSrc = { type:'row', rowIds:ids, groupName:row.group };
+      ids.forEach(id => { const el = qs(`tr[data-id="${id}"]`); if(el) el.classList.add('dragging-src'); });
+      setGhost(ids.length > 1 ? `Moving ${ids.length} rows` : esc(row.name));
+      e.dataTransfer.effectAllowed = 'move';
+    });
+  }
+
+  // Drop events
+  tr.addEventListener('dragover',  e => onDragOver(e, tr, 'row', row.id, row.group));
+  tr.addEventListener('dragleave', e => { if (!tr.contains(e.relatedTarget)) clearDrop(); });
+  tr.addEventListener('drop',      e => onDrop(e,  tr, 'row', row.id, row.group));
+
+  return tr;
+}
+
+/* ── EMPTY GROUP ── */
+function buildEmptyGroup(g) {
+  const tr = document.createElement('tr');
+  tr.className = 'grp-empty';
+  tr.dataset.group = g;
+  tr.innerHTML = `<td colspan="10">Drop rows here to add to ${esc(g)}</td>`;
+  tr.addEventListener('dragover', e => { if (dragSrc?.type!=='row') return; e.preventDefault(); tr.classList.add('drop-into'); dropEl = tr; });
+  tr.addEventListener('dragleave', () => tr.classList.remove('drop-into'));
+  tr.addEventListener('drop', e => { e.preventDefault(); tr.classList.remove('drop-into'); doRowDrop({ type:'group-into', groupName:g, pos:'bottom' }); });
+  return tr;
+}
+
+/* ═══════════════════════════════════════════════════
+   DRAG EVENTS
+═══════════════════════════════════════════════════ */
+
+function attachDrag() {
+  // dragend cleanup on tbody
+  q('tbody').addEventListener('dragend', cleanupDrag);
+}
+
+function setGhost(text) {
+  const g = q('drag-ghost');
+  g.textContent = text;
+  // position offscreen; browser uses this as the drag image
+  document.body.appendChild(g); // make sure it's in DOM
+  const handle = qs('[data-drag-type]') || document.body;
+  // setDragImage requires we do it during dragstart — but we're calling from an event listener
+  // We'll use a timeout=0 trick via event arg stored above — actually just expose ghost and caller sets it
+  // Caller should do: e.dataTransfer.setDragImage(q('drag-ghost'), 16, 12)
+  // We'll do this by calling attachGhostToDragEvent from the dragstart handler
+}
+
+// Attach ghost image on dragstart (called from row/group handlers)
+// We need this in a different way - let's attach to the current active dragstart event
+// We do this by hooking the event inside buildRow/buildGroupHdr
+
+// Modified ghost approach: store last dragstart event in a var and call setDragImage there
+// Actually it's cleaner to just inline the ghost logic in each dragstart handler
+// Let me patch that below:
+
+// Redefine drag starts to include setDragImage properly:
+function makeDragStartHandler(trEl, ghostText, srcObj) {
+  return function(e) {
+    if (!dragFromHandle || !S.reorderEnabled) { e.preventDefault(); return; }
+    dragFromHandle = false;
+    dragSrc = srcObj();
+    // Visual: mark source rows
+    if (dragSrc.type === 'row') {
+      dragSrc.rowIds.forEach(id => { const el = qs(`tr[data-id="${id}"]`); if(el) el.classList.add('dragging-src'); });
+    } else {
+      trEl.classList.add('dragging-src');
+    }
+    // Ghost
+    const g = q('drag-ghost');
+    g.textContent = ghostText();
+    g.style.top = '-200px'; g.style.left = '-200px';
+    e.dataTransfer.setDragImage(g, 20, 14);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+}
+
+// (Note: we attached handlers inline above, which is fine; ghost is off-screen anyway)
+// The ghost element is already placed; setDragImage is called inline per row/group above.
+// Let's reconcile: both buildRow and buildGroupHdr need to call setDragImage. We handle
+// that by re-assigning the dragstart listener here. Let me redo this cleanly:
+
+function rebindDragStarts() {
+  // Re-attach proper dragstart listeners that call setDragImage
+  qsa('[data-handle-row]').forEach(handle => {
+    const rowId = parseInt(handle.dataset.handleRow);
+    const tr = handle.closest('tr');
+    if (!tr) return;
+    const row = rows.find(r => r.id === rowId);
+    if (!row) return;
+    // Remove old and re-add
+    const newHandle = handle.cloneNode(true);
+    handle.replaceWith(newHandle);
+    newHandle.addEventListener('mousedown', () => { dragFromHandle = true; });
+    tr.addEventListener('dragstart', function onDS(e) {
+      if (!dragFromHandle || !S.reorderEnabled) { e.preventDefault(); return; }
+      dragFromHandle = false;
+      const ids = (S.multiDrag && S.selection==='multiple' && selected.has(rowId) && selected.size > 1)
+        ? [...selected] : [rowId];
+      dragSrc = { type:'row', rowIds:ids, groupName:row.group };
+      ids.forEach(id => { const el = qs(`tr[data-id="${id}"]`); if(el) el.classList.add('dragging-src'); });
+      const g = q('drag-ghost');
+      g.textContent = ids.length > 1 ? `Moving ${ids.length} rows` : row.name;
+      e.dataTransfer.setDragImage(g, 20, 14);
+      e.dataTransfer.effectAllowed = 'move';
+    }, { once: false });
+  });
+
+  qsa('[data-handle-group]').forEach(handle => {
+    const gName = handle.dataset.handleGroup;
+    const tr = handle.closest('tr');
+    if (!tr) return;
+    const newHandle = handle.cloneNode(true);
+    handle.replaceWith(newHandle);
+    newHandle.addEventListener('mousedown', () => { dragFromHandle = true; });
+    tr.addEventListener('dragstart', function onDSG(e) {
+      if (!dragFromHandle || !S.reorderEnabled) { e.preventDefault(); return; }
+      dragFromHandle = false;
+      dragSrc = { type:'group', rowIds:[], groupName:gName };
+      tr.classList.add('dragging-src');
+      const g = q('drag-ghost');
+      g.textContent = `Group: ${gName}`;
+      e.dataTransfer.setDragImage(g, 20, 14);
+      e.dataTransfer.effectAllowed = 'move';
+    }, { once: false });
+  });
+}
+
+/* ── DRAGOVER & DROP ── */
+function onDragOver(e, tr, trType, rowId, groupName) {
+  if (!dragSrc) return;
+  // Group drag: only valid over other group headers
+  if (dragSrc.type === 'group' && trType !== 'group-hdr') return;
+  // Row drag over group header: only in grouped mode
+  if (dragSrc.type === 'row' && trType === 'group-hdr' && !S.grouped) return;
+
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  // Clear previous indicator
+  if (dropEl && dropEl !== tr) clearDrop();
+
+  dropEl = tr;
+  const rect = tr.getBoundingClientRect();
+  const above = e.clientY < rect.top + rect.height / 2;
+
+  tr.classList.remove('drop-above','drop-below','drop-into');
+
+  if (dragSrc.type === 'group') {
+    tr.classList.add(above ? 'drop-above' : 'drop-below');
+  } else {
+    if (trType === 'row') {
+      tr.classList.add(above ? 'drop-above' : 'drop-below');
+    } else if (trType === 'group-hdr') {
+      // above midpoint = insert at top of group; below = bottom of group
+      tr.classList.add(above ? 'drop-above' : 'drop-into');
+    }
+  }
+}
+
+function onDrop(e, tr, trType, rowId, groupName) {
+  e.preventDefault();
+  clearDrop();
+
+  if (!dragSrc) return;
+
+  const rect = tr.getBoundingClientRect();
+  const above = e.clientY < rect.top + rect.height / 2;
+
+  const prevOrder = getOrderedKeys();
+
+  if (dragSrc.type === 'group') {
+    if (trType !== 'group-hdr') { cleanupDrag(); return; }
+    doGroupReorder(dragSrc.groupName, groupName, above ? 'before' : 'after');
+  } else {
+    if (trType === 'row') {
+      doRowDrop({ type:'row', rowId, groupName, pos: above ? 'before' : 'after' });
+    } else if (trType === 'group-hdr') {
+      doRowDrop({ type:'group-into', groupName, pos: above ? 'top' : 'bottom' });
+    }
+  }
+
+  const newOrder = getOrderedKeys();
+  isDirty = !arrEq(prevOrder, newOrder) || !arrEq(groupOrder, SEED_GROUPS);
+  lastChangeset = buildChangeset(prevOrder, newOrder);
+
+  // Flash moved rows
+  const movedIds = dragSrc?.rowIds || [];
+  cleanupDrag();
+  render();
+  movedIds.forEach(id => {
+    const el = qs(`tr[data-id="${id}"]`);
+    if (el) { el.classList.add('just-moved'); setTimeout(()=>el.classList.remove('just-moved'), 800); }
+  });
+  updateState();
+}
+
+function doGroupReorder(src, tgt, pos) {
+  if (src === tgt) return;
+  const fi = groupOrder.indexOf(src);
+  groupOrder.splice(fi, 1);
+  let ti = groupOrder.indexOf(tgt);
+  if (pos === 'after') ti++;
+  groupOrder.splice(Math.max(0, ti), 0, src);
+}
+
+function doRowDrop(target) {
+  const ids = dragSrc.rowIds;
+  const moving = rows.filter(r => ids.includes(r.id));
+  rows = rows.filter(r => !ids.includes(r.id));
+
+  let insertAt = rows.length;
+  let newGroup = moving[0]?.group || '';
+
+  if (target.type === 'row') {
+    newGroup = target.groupName || newGroup;
+    const ti = rows.findIndex(r => r.id === target.rowId);
+    insertAt = ti === -1 ? rows.length : (target.pos === 'before' ? ti : ti + 1);
+  } else if (target.type === 'group-into') {
+    newGroup = target.groupName;
+    if (target.pos === 'top') {
+      const fi = rows.findIndex(r => r.group === newGroup);
+      insertAt = fi === -1 ? rows.length : fi;
+    } else {
+      let li = -1;
+      for (let i = rows.length-1; i >= 0; i--) { if (rows[i].group === newGroup) { li = i; break; } }
+      insertAt = li === -1 ? rows.length : li + 1;
+    }
+  }
+
+  if (S.grouped) moving.forEach(r => r.group = newGroup);
+  rows.splice(insertAt, 0, ...moving);
+}
+
+function cleanupDrag() {
+  qsa('.dragging-src').forEach(el => el.classList.remove('dragging-src'));
+  clearDrop();
+  dragSrc = null;
+}
+
+function clearDrop() {
+  if (dropEl) { dropEl.classList.remove('drop-above','drop-below','drop-into'); dropEl = null; }
+}
+
+/* ═══════════════════════════════════════════════════
+   SELECTION
+═══════════════════════════════════════════════════ */
+
+function handleSelect(id, e) {
+  if (S.selection === 'none') return;
+  if (S.selection === 'single') {
+    selected.has(id) && selected.size===1 ? selected.clear() : (selected.clear(), selected.add(id));
+  } else {
+    if (e.shiftKey && selected.size > 0) {
+      const allIds = rows.map(r => r.id);
+      const last = [...selected].pop();
+      const a = allIds.indexOf(last), b = allIds.indexOf(id);
+      allIds.slice(Math.min(a,b), Math.max(a,b)+1).forEach(x => selected.add(x));
+    } else if (e.metaKey || e.ctrlKey) {
+      selected.has(id) ? selected.delete(id) : selected.add(id);
+    } else {
+      selected.clear(); selected.add(id);
+    }
+  }
+  render(); updateState();
+}
+
+/* ═══════════════════════════════════════════════════
+   CHROME UPDATES
+═══════════════════════════════════════════════════ */
+
+function updateChrome() {
+  q('row-count').textContent = `${rows.length} row${rows.length!==1?'s':''}`;
+  q('dirty-pill').classList.toggle('show', isDirty);
+  q('hint-strip').classList.toggle('show', S.reorderEnabled);
+  q('btn-clear-sel').style.display = selected.size > 0 ? '' : 'none';
+  q('sel-summary').textContent = selected.size > 0 ? `${selected.size} selected` : '';
+  q('sg-multidrag').classList.toggle('disabled', S.selection !== 'multiple');
+
+  // Info card hints
+  q('info-group-row').style.display  = S.grouped ? '' : 'none';
+  q('info-group-sec').style.display  = S.grouped ? '' : 'none';
+  q('info-multi-sec').style.display  = S.multiDrag && S.selection==='multiple' ? '' : 'none';
+
+  rebindDragStarts();
+}
+
+/* ═══════════════════════════════════════════════════
+   STATE PANEL
+═══════════════════════════════════════════════════ */
+
+function updateState() {
+  if (!statePanelOpen) return;
+  const orderedKeys = getOrderedKeys();
+  const selRows = rows.filter(r => selected.has(r.id)).map(r => `{id:${r.id},name:"${r.name}"}`);
+  const cs = lastChangeset.slice(0,4).map(c => `{id:${c.id},from:${c.from}→to:${c.to}}`);
+
+  const cols = [
+    { title:'Selection', lines:[
+      { k:'selectedIds',    v: JSON.stringify([...selected]),                   type:'val' },
+      { k:'selectedRow',    v: selRows.length===1 ? selRows[0] : selRows.length>1 ? `[${selRows.length} rows]` : 'null', type: selRows.length?'val':'null' },
+      { k:'rowSelection',   v: `"${S.selection}"`,                              type:'str' },
+    ]},
+    { title:'Order', lines:[
+      { k:'orderedRowKeys', v: `[${orderedKeys.join(', ')}]`,                  type:'val' },
+      { k:'isDirtyOrder',   v: String(isDirty),                                type: isDirty?'warn':'val' },
+      { k:'groupOrder',     v: JSON.stringify(groupOrder),                     type:'str' },
+    ]},
+    { title:'Reorder', lines:[
+      { k:'reorderChangeset', v: cs.length ? cs.join(', ') : 'null',          type: cs.length?'val':'null' },
+      { k:'reorderEnabled', v: String(S.reorderEnabled),                       type:'val' },
+      { k:'totalRows',      v: String(rows.length),                            type:'val' },
+    ]},
+  ];
+
+  q('state-body').innerHTML = cols.map(col => `
+    <div class="state-col">
+      <div class="state-col-title">${col.title}</div>
+      ${col.lines.map(l => `
+        <div class="state-line">
+          <span class="sk">${l.k}</span><span style="color:#4a5568">: </span><span class="${l.type==='null'?'sn':l.type==='warn'?'sp':'sv'}">${esc(String(l.v))}</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+/* ═══════════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════════ */
+
+function getOrderedKeys() {
+  if (!S.grouped) return rows.map(r => r.id);
+  const out = [];
+  groupOrder.forEach(g => rows.filter(r => r.group===g).forEach(r => out.push(r.id)));
+  return out;
+}
+
+function buildChangeset(prev, next) {
+  return next.map((id, ni) => ({ id, from: prev.indexOf(id), to: ni })).filter(c => c.from !== c.to);
+}
+
+function arrEq(a, b) { return a.length===b.length && a.every((v,i)=>v===b[i]); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function statusBadge(s) {
+  const m = { 'Done':['s-done','Done'], 'In Progress':['s-progress','In Progress'], 'Todo':['s-todo','Todo'] };
+  const [c,l] = m[s]||['s-todo',s];
+  return `<span class="badge ${c}"><span class="badge-dot"></span>${l}</span>`;
+}
+function priBadge(p) {
+  const m = { 'High':'p-high', 'Medium':'p-medium', 'Low':'p-low' };
+  return `<span class="badge ${m[p]||'p-low'}"><span class="badge-dot"></span>${p}</span>`;
+}
+function avaCell(name) {
+  const col = AVA_COLORS[name]||'#6366f1';
+  const init = name.split(' ').map(n=>n[0]).join('').substring(0,2);
+  return `<span class="ava"><span class="ava-circle" style="background:${col}">${init}</span><span>${esc(name)}</span></span>`;
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+initSettings();
+render();
+</script>
+</body>
+</html>
