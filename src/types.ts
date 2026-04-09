@@ -9,7 +9,7 @@ export type ColumnFormat =
   | 'avatar'
   | 'link'
   | 'email'
-  | 'json'
+  | 'html'
   | 'markdown'
   | 'progress';
 

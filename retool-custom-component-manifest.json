@@ -212,13 +212,21 @@
             {
               "sourceKey": "bio",
               "label": "Bio",
-              "format": "markdown",
+              "format": "html",
               "editable": true
+            },
+            {
+              "sourceKey": "progress",
+              "label": "Progress",
+              "format": "progress",
+              "editable": true,
+              "width": 180,
+              "align": "center"
             }
           ],
           "inspector": "text",
           "label": "Columns JSON",
-          "description": "Array of column definitions. Supports `width`, `editable`, and optional `resizable`.",
+          "description": "Array of column definitions. Supports `width`, `editable`, `hidden`, `resizable`, and formats like `progress`, `markdown`, and `html`.",
           "type": "array"
         },
         {
@@ -230,7 +238,8 @@
             "createdAt",
             "teams",
             "website",
-            "bio"
+            "bio",
+            "progress"
           ],
           "inspector": "text",
           "label": "Column Ordering JSON",

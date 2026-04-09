@@ -89,6 +89,95 @@ export const formatDate = (value: unknown, time = false) => {
   return time ? date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : date.toLocaleDateString([], { dateStyle: 'medium' });
 };
 
+const escapeHtml = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const formatInlineMarkdown = (value: string) => {
+  const withLinks = value.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, href: string) => {
+    const safeHref = /^(https?:|mailto:|\/)/i.test(href.trim()) ? href.trim() : '#';
+    return `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noreferrer">${label}</a>`;
+  });
+
+  return withLinks
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>');
+};
+
+export const stripHtmlTags = (value: string) => value.replace(/<[^>]*>/g, '');
+
+export const markdownToHtml = (value: unknown) => {
+  const text = String(value ?? '').replace(/\r\n/g, '\n');
+  if (!text.trim()) return '';
+
+  const lines = text.split('\n');
+  const blocks: string[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index]!;
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith('```')) {
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index]!.startsWith('```')) {
+        codeLines.push(lines[index]!);
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      blocks.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${formatInlineMarkdown(escapeHtml(heading[2] ?? ''))}</h${level}>`);
+      index += 1;
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index]!)) {
+        quoteLines.push(lines[index]!.replace(/^>\s?/, ''));
+        index += 1;
+      }
+      blocks.push(`<blockquote><p>${formatInlineMarkdown(escapeHtml(quoteLines.join(' ')))}</p></blockquote>`);
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^[-*]\s+/.test(lines[index]!)) {
+        items.push(lines[index]!.replace(/^[-*]\s+/, ''));
+        index += 1;
+      }
+      blocks.push(`<ul>${items.map((item) => `<li>${formatInlineMarkdown(escapeHtml(item))}</li>`).join('')}</ul>`);
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (index < lines.length && lines[index]!.trim() && !lines[index]!.startsWith('```') && !/^(#{1,6})\s+/.test(lines[index]!) && !/^>\s?/.test(lines[index]!) && !/^[-*]\s+/.test(lines[index]!)) {
+      paragraphLines.push(lines[index]!);
+      index += 1;
+    }
+    blocks.push(`<p>${formatInlineMarkdown(escapeHtml(paragraphLines.join(' ')))}</p>`);
+  }
+
+  return blocks.join('');
+};
+
 export const formatCellText = (value: unknown, column: TableColumn) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (value === null || value === undefined) return '';
@@ -96,11 +185,11 @@ export const formatCellText = (value: unknown, column: TableColumn) => {
   if (format === 'date time') return formatDate(value, true);
   if (format === 'boolean') return value ? 'Yes' : 'No';
   if (format === 'multiple tags') return Array.isArray(value) ? value.map(String).join(', ') : String(value);
-  if (format === 'json') return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  if (format === 'html') return stripHtmlTags(String(value));
   return String(value);
 };
 
-export const isEditableFormat = (format?: string) => !new Set(['progress']).has((format ?? 'string').toLowerCase());
+export const isEditableFormat = (_format?: string) => true;
 
 export const moveKeys = (orderedKeys: string[], movingKeys: string[], targetKey: string, insertBefore: boolean) => {
   const moving = orderedKeys.filter((key) => movingKeys.includes(key));

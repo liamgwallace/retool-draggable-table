@@ -21,7 +21,7 @@
 - Row drag and drop.
 - Multi-select row movement when `multiSelectEnabled` is on.
 - Add row at top, bottom, or after the currently selected row.
-- Inline editors for text, email, dates, booleans, tags, and multiple tags.
+- Inline editors for text, email, dates, booleans, tags, multiple tags, progress sliders, markdown, and HTML.
 - Configurable columns using JSON.
 - Configurable visible column order using JSON.
 - Optional single-level or multi-level grouping using JSON.
@@ -109,7 +109,7 @@ Guidance:
 - If `primaryKey` is missing or blank for a row, the component falls back to `indexColumn`, then finally to the row index.
 - If you want reorder changes to be persisted to your database, include a dedicated sort field in your data and point `indexColumn` at it.
 - Arrays are supported, especially for `multiple tags` columns.
-- Objects are supported, especially for `json` columns.
+- Objects are supported, especially for `html` or `markdown` columns that you want to stringify or enrich before display.
 
 Good uses:
 
@@ -131,7 +131,8 @@ Default value:
   { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140 },
   { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 240 },
   { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240 },
-  { "sourceKey": "bio", "label": "Bio", "format": "markdown", "editable": true }
+  { "sourceKey": "bio", "label": "Bio", "format": "html", "editable": true },
+  { "sourceKey": "progress", "label": "Progress", "format": "progress", "editable": true, "width": 180, "align": "center" }
 ]
 ```
 
@@ -165,16 +166,17 @@ Supported `format` values:
 | `avatar` | Initials avatar plus subtext from `row.email` or `row.owner` | Text editing |
 | `link` | Clickable external link | Text editing |
 | `email` | `mailto:` link | Email input |
-| `json` | JSON text | Multiline editing |
-| `markdown` | Plain markdown text display | Multiline editing |
-| `progress` | Progress bar | Not editable |
+| `html` | Raw HTML rendered in the cell | Multiline editing |
+| `markdown` | Rendered markdown | Multiline editing |
+| `progress` | Progress bar | Slider |
 
 Notes:
 
 - If you omit `columnsJson`, the component derives columns from the first row of `dataSource`.
 - If a column has no `width` and `resizable` is not `false`, the component estimates a starting width.
-- `markdown` is shown as text, not rendered HTML.
-- `progress` expects a numeric value and draws a 0-100 bar.
+- `markdown` is rendered to HTML, so headings, lists, links, emphasis, and code blocks display in the cell.
+- `html` renders the cell value as HTML.
+- `progress` expects a numeric value and uses a 0-100 slider editor.
 
 Example with a hidden field and tooltip:
 
@@ -183,7 +185,7 @@ Example with a hidden field and tooltip:
   { "sourceKey": "email", "label": "Email", "format": "email", "editable": true, "width": 260 },
   { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "description": "User access level" },
   { "sourceKey": "enabled", "label": "Enabled", "format": "boolean", "align": "center", "width": 100 },
-  { "sourceKey": "bio", "label": "Internal notes", "format": "markdown", "hidden": true }
+  { "sourceKey": "bio", "label": "Internal notes", "format": "html", "hidden": true }
 ]
 ```
 
@@ -194,7 +196,7 @@ Example with a hidden field and tooltip:
 Default value:
 
 ```json
-["email", "role", "enabled", "createdAt", "teams", "website", "bio"]
+["email", "role", "enabled", "createdAt", "teams", "website", "bio", "progress"]
 ```
 
 How it works:
@@ -872,9 +874,10 @@ Examples:
     { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140 },
     { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 240 },
     { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240 },
-    { "sourceKey": "bio", "label": "Bio", "format": "markdown", "editable": true }
+    { "sourceKey": "bio", "label": "Bio", "format": "html", "editable": true },
+    { "sourceKey": "progress", "label": "Progress", "format": "progress", "editable": true, "width": 180, "align": "center" }
   ],
-  "columnOrderingJson": ["email", "role", "enabled", "createdAt", "teams", "website", "bio"],
+  "columnOrderingJson": ["email", "role", "enabled", "createdAt", "teams", "website", "bio", "progress"],
   "groupByColumnsJson": []
 }
 ```
@@ -921,7 +924,7 @@ Examples:
 ## Known behavior notes
 
 - `changesetObject` is exposed to Retool as a JSON string, not a live object.
-- `markdown` values are editable and displayed as plain text.
+- `markdown` values are rendered as markdown, and `html` values are rendered as HTML.
 - The leftmost numeric `ID` column in the UI is the current display index, not necessarily your row's database `id`.
 - Group reordering only affects top-level groups.
 - `expandRow` exists as a declared Retool event but is not currently triggered by the component.

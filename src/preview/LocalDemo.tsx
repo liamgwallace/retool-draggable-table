@@ -3,12 +3,12 @@ import { DraggableTable } from '../components/DraggableTable/DraggableTable';
 import type { TableModel } from '../types';
 
 const sampleRows = [
-  { id: 0, user: 'Chic Footitt', email: 'chic.footitt@yahoo.com', role: 'Viewer', enabled: true, createdAt: '2023-01-16', teams: ['Workplace', 'Infrastructure'], website: 'https://chic.footitt.com', bio: 'Nulla sit amet nibh at augue facilisis viverra quis id dui. Nullam mattis ultricies metus. Donec eros lorem, egestas vitae aliquam quis, rutrum a mauris.' },
-  { id: 1, user: 'Kenton Worling', email: 'kentonworling@icloud.com', role: 'Viewer', enabled: false, createdAt: '2021-12-24', teams: ['Workplace'], website: 'https://kenton.worling.com', bio: 'Duis viverra elementum ante, placerat sollicitudin ipsum laoreet nec. Suspendisse et lacus augue. Nullam mattis ultricies metus. Etiam bibendum.' },
-  { id: 2, user: 'Evelina Fender', email: 'efender@outlook.com', role: 'Editor', enabled: true, createdAt: '2022-01-03', teams: ['Product', 'Sales'], website: 'https://evelina.fender.com', bio: 'Donec in lorem a dolor placerat gravida. Sed eu mollis felis. Lorem ipsum dolor sit amet, consectetur adipiscing elit.' },
-  { id: 3, user: 'Lexis Speers', email: 'lexisspeers@icloud.com', role: 'Admin', enabled: true, createdAt: '2022-12-13', teams: ['Infrastructure', 'Design'], website: 'https://lexis.speers.com', bio: 'Donec in lorem a dolor placerat gravida. Suspendisse et lacus augue. Donec in lorem a dolor placerat gravida.' },
-  { id: 4, user: 'Kenton Antonioni', email: 'kenton.antonioni@icloud.com', role: 'Admin', enabled: true, createdAt: '2022-04-15', teams: ['Success', 'Recruiting', 'Data'], website: 'https://kenton.antonioni.com', bio: 'Etiam bibendum auctor aliquet. Nullam mattis ultricies metus. Nullam mattis ultricies metus et aliquam elit.' },
-  { id: 5, user: 'Nanon Stit', email: 'nanonstit@gmail.com', role: 'Editor', enabled: false, createdAt: '2022-10-14', teams: ['Data'], website: 'https://nanon.stit.com', bio: 'Sed eu mollis felis. Nulla sit amet augue facilisis viverra quis id dui. Donec eros lorem, egestas vitae aliquam quis.' },
+  { id: 0, user: 'Chic Footitt', email: 'chic.footitt@yahoo.com', role: 'Viewer', enabled: true, createdAt: '2023-01-16', teams: ['Workplace', 'Infrastructure'], website: 'https://chic.footitt.com', bio: '<strong>Nulla sit amet nibh</strong> at augue facilisis viverra quis id dui. <em>Nullam mattis</em> ultricies metus.', progress: 12 },
+  { id: 1, user: 'Kenton Worling', email: 'kentonworling@icloud.com', role: 'Viewer', enabled: false, createdAt: '2021-12-24', teams: ['Workplace'], website: 'https://kenton.worling.com', bio: '<p>Duis viverra elementum ante, placerat sollicitudin ipsum laoreet nec.</p>', progress: 28 },
+  { id: 2, user: 'Evelina Fender', email: 'efender@outlook.com', role: 'Editor', enabled: true, createdAt: '2022-01-03', teams: ['Product', 'Sales'], website: 'https://evelina.fender.com', bio: '<ul><li>Donec in lorem</li><li>Sed eu mollis felis</li></ul>', progress: 46 },
+  { id: 3, user: 'Lexis Speers', email: 'lexisspeers@icloud.com', role: 'Admin', enabled: true, createdAt: '2022-12-13', teams: ['Infrastructure', 'Design'], website: 'https://lexis.speers.com', bio: '<a href="https://example.com">Linked note</a> with extra context.', progress: 64 },
+  { id: 4, user: 'Kenton Antonioni', email: 'kenton.antonioni@icloud.com', role: 'Admin', enabled: true, createdAt: '2022-04-15', teams: ['Success', 'Recruiting', 'Data'], website: 'https://kenton.antonioni.com', bio: '<span style="font-style: italic;">Etiam bibendum auctor aliquet.</span>', progress: 81 },
+  { id: 5, user: 'Nanon Stit', email: 'nanonstit@gmail.com', role: 'Editor', enabled: false, createdAt: '2022-10-14', teams: ['Data'], website: 'https://nanon.stit.com', bio: '<strong>Sed eu mollis felis.</strong> Nulla sit amet augue facilisis viverra.', progress: 93 },
 ];
 
 export const LocalDemo: React.FC = () => {
@@ -26,7 +26,8 @@ export const LocalDemo: React.FC = () => {
           { sourceKey: 'createdAt', label: 'Created at', format: 'date', editable: true, width: 140 },
           { sourceKey: 'teams', label: 'Teams', format: 'multiple tags', editable: true, width: 240 },
           { sourceKey: 'website', label: 'Website', format: 'link', editable: true, width: 240 },
-          { sourceKey: 'bio', label: 'Bio', format: 'markdown', editable: true },
+          { sourceKey: 'bio', label: 'Bio', format: 'html', editable: true },
+          { sourceKey: 'progress', label: 'Progress', format: 'progress', editable: true, width: 180, align: 'center' },
         ]}
         multiSelectEnabled
         showSavePrompt

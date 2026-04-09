@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconArrowBackUp, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
-import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, moveKeys } from '../../lib/tableUtils';
+import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, markdownToHtml, moveKeys } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
 
 type DragState = {
@@ -70,7 +70,7 @@ const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabe
   return remaining;
 };
 
-const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'json']).has((format ?? 'string').toLowerCase());
+const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
 
 const estimateColumnWidth = (rows: RowData[], column: TableColumn) => {
   const labelWidth = (column.label ?? column.sourceKey).length * 9;
@@ -538,7 +538,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     const nextRow = { ...rowsByKey[rowKey], [field]: parseInputValue(rawValue, column) };
     syncRow(rowKey, nextRow);
     setEdits((current) => ({ ...current, [rowKey]: { ...(current[rowKey] ?? {}), [field]: nextRow[field] } }));
-  const cell: SelectedCell = { rowKey, columnKey: field, value: nextRow[field] };
+    const cell: SelectedCell = { rowKey, columnKey: field, value: nextRow[field] };
     setSelectedCell(cell);
     onChangeCell?.(cell);
   };
@@ -588,6 +588,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const commitArrayEditor = (nextValue: string[]) => {
     if (!activeEditor) return;
     updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, nextValue);
+  };
+
+  const commitProgressEditor = (nextValue: string) => {
+    if (!activeEditor) return;
+    commitEdit(activeEditor.rowKey, activeEditor.columnKey, nextValue);
   };
 
   const startResize = (columnKey: string, event: React.PointerEvent) => {
@@ -873,6 +878,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               onChangeMultiText={setEditorMultiText}
               onChangeSelections={setEditorSelections}
               onCommitText={(next) => { commitEdit(activeEditor.rowKey, activeEditor.columnKey, next); closeEditor(); }}
+              onCommitLive={(next) => { if (activeColumn?.format === 'progress') commitProgressEditor(next); }}
               onCommitArray={commitArrayEditor}
               onClose={closeEditor}
             />
@@ -928,11 +934,11 @@ const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData
   if (format === 'email') {
     return <a className={styles.link} href={`mailto:${String(value ?? '')}`}>{text}</a>;
   }
-  if (format === 'json') {
-    return <span className={styles.json}>{text}</span>;
-  }
   if (format === 'markdown') {
-    return <span className={styles.markdown}>{text}</span>;
+    return <div className={styles.markdown} dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />;
+  }
+  if (format === 'html') {
+    return <div className={styles.html} dangerouslySetInnerHTML={{ __html: String(value ?? '') }} />;
   }
   if (format === 'progress') {
     const percent = Number(value ?? 0);
@@ -953,9 +959,10 @@ const EditorPopover: React.FC<{
   onChangeMultiText: (next: string) => void;
   onChangeSelections: (next: string[]) => void;
   onCommitText: (next: string) => void;
+  onCommitLive?: (next: string) => void;
   onCommitArray: (next: string[]) => void;
   onClose: () => void;
-}> = ({ column, value, text, editorText, editorMultiText, editorSelections, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitArray, onClose }) => {
+}> = ({ column, value, text, editorText, editorMultiText, editorSelections, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onClose }) => {
   const format = (column.format ?? 'string').toLowerCase();
   const tagOptions = Array.from(new Set([...(Array.isArray(value) ? value.map(String) : []), ...options, text].flatMap((item) => String(item).split(',').map((entry) => entry.trim()).filter(Boolean))));
 
@@ -973,6 +980,28 @@ const EditorPopover: React.FC<{
             </button>
           );
         })}
+      </div>
+    );
+  }
+
+  if (format === 'progress') {
+    const percent = Math.max(0, Math.min(100, Number(editorText || value || 0)));
+    return (
+      <div className={styles.progressEditor}>
+        <input
+          className={styles.progressSlider}
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={percent}
+          onChange={(event) => {
+            onChangeText(event.target.value);
+            onCommitLive?.(event.target.value);
+          }}
+          autoFocus
+        />
+        <div className={styles.progressEditorValue}>{percent}%</div>
       </div>
     );
   }
