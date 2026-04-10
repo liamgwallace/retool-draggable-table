@@ -76,6 +76,12 @@ At a minimum, configure these inputs:
 
 The shipped defaults already provide working sample data and sample columns, so the component renders immediately after adding it to an app.
 
+Height mode note:
+
+- Fixed height is the stable supported mode for this component in Retool.
+- Auto height is still inconsistent in Retool custom-component sizing. In some cases it initially renders too short, then snaps to the correct height after another layout change such as adjusting width.
+- If you need predictable behavior, use fixed height.
+
 ## Input reference
 
 ### `dataSource`
@@ -93,15 +99,24 @@ Default sample row shape:
 ```json
 {
   "id": 0,
+  "user": "Chic Footitt",
+  "department": "Operations",
   "email": "chic.footitt@yahoo.com",
   "role": "Viewer",
   "enabled": true,
+  "employeeNumber": 1042,
   "createdAt": "2023-01-16",
+  "lastLoginAt": "2025-03-18T09:45:00",
   "teams": ["Workplace", "Infrastructure"],
   "website": "https://chic.footitt.com",
-  "bio": "Nulla sit amet nibh at augue facilisis viverra quis id dui."
+  "bioHtml": "<strong>Nulla sit amet nibh</strong> at augue facilisis viverra quis id dui.",
+  "notesMarkdown": "## Quick note\n- Prefers async updates\n- Uses the customer inbox",
+  "progress": 12,
+  "internalNotes": "Hidden sample row note\nNeeds review before export."
 }
 ```
+
+The shipped sample `dataSource` now includes 16 rows so you can test scrolling, selection, grouping, and edit behavior with a less trivial dataset.
 
 Guidance:
 
@@ -125,14 +140,20 @@ Default value:
 
 ```json
 [
-  { "sourceKey": "email", "label": "Email", "format": "email", "editable": true, "width": 260 },
-  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "width": 110 },
-  { "sourceKey": "enabled", "label": "Enabled", "format": "boolean", "editable": true, "width": 100, "align": "center" },
-  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140 },
-  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 240 },
-  { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240 },
-  { "sourceKey": "bio", "label": "Bio", "format": "html", "editable": true },
-  { "sourceKey": "progress", "label": "Progress", "format": "progress", "editable": true, "width": 180, "align": "center" }
+  { "sourceKey": "user", "label": "User", "format": "avatar", "editable": true, "width": 260, "description": "Avatar-style name column." },
+  { "sourceKey": "department", "label": "Department", "format": "string", "editable": true, "width": 160, "description": "Plain text string column." },
+  { "sourceKey": "email", "label": "Email", "format": "email", "editable": true, "width": 260, "description": "Click-to-email address.", "resizable": false },
+  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "width": 120, "description": "Colored tag chip." },
+  { "sourceKey": "enabled", "label": "Enabled", "format": "boolean", "editable": true, "width": 100, "align": "center", "description": "Boolean toggle column." },
+  { "sourceKey": "employeeNumber", "label": "Employee #", "format": "number", "editable": true, "width": 120, "align": "right", "description": "Numeric editor column." },
+  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140, "description": "Date picker column." },
+  { "sourceKey": "lastLoginAt", "label": "Last login", "format": "date time", "editable": true, "width": 180, "description": "Date and time editor column." },
+  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 260, "description": "Multi-tag chip column." },
+  { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240, "description": "External link column." },
+  { "sourceKey": "bioHtml", "label": "Bio HTML", "format": "html", "editable": true, "width": 320, "description": "Raw HTML rendering column." },
+  { "sourceKey": "notesMarkdown", "label": "Notes", "format": "markdown", "editable": true, "width": 320, "description": "Markdown rendering column." },
+  { "sourceKey": "progress", "label": "Progress", "format": "progress", "editable": true, "width": 180, "align": "center", "description": "0-100 progress slider column." },
+  { "sourceKey": "internalNotes", "label": "Internal notes", "format": "multiline string", "editable": true, "hidden": true, "resizable": false, "description": "Hidden multiline text sample column." }
 ]
 ```
 
@@ -156,7 +177,8 @@ Supported `format` values:
 
 | Format | Display behavior | Edit behavior |
 | --- | --- | --- |
-| `string` | Plain text | Text input / textarea-style editing |
+| `string` | Plain text | Single-line text input with save/cancel actions |
+| `multiline string` | Plain text with preserved line breaks | Multiline textarea editor with save/cancel actions |
 | `number` | Plain text | Numeric input |
 | `date` | Localized date | Native date picker |
 | `date time` | Localized date + time | Native datetime input |
@@ -174,6 +196,8 @@ Notes:
 
 - If you omit `columnsJson`, the component derives columns from the first row of `dataSource`.
 - If a column has no `width` and `resizable` is not `false`, the component estimates a starting width.
+- `string` is the single-line plain-text format.
+- `multiline string` is the plain-text multiline format.
 - `markdown` is rendered to HTML, so headings, lists, links, emphasis, and code blocks display in the cell.
 - `html` renders the cell value as HTML.
 - `progress` expects a numeric value and uses a 0-100 slider editor.
@@ -196,7 +220,7 @@ Example with a hidden field and tooltip:
 Default value:
 
 ```json
-["email", "role", "enabled", "createdAt", "teams", "website", "bio", "progress"]
+["user", "department", "email", "role", "enabled", "employeeNumber", "createdAt", "lastLoginAt", "teams", "website", "bioHtml", "notesMarkdown", "progress", "internalNotes"]
 ```
 
 How it works:

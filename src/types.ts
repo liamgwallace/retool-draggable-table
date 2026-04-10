@@ -1,5 +1,6 @@
 export type ColumnFormat =
   | 'string'
+  | 'multiline string'
   | 'number'
   | 'date'
   | 'date time'
@@ -115,7 +116,7 @@ export interface DraggableTableProps {
   stickyHeader?: boolean;
   loading?: boolean;
   addRowPosition?: 'top' | 'bottom';
-  rowHeight?: 'extra small' | 'small' | 'medium' | 'large' | 'dynamic';
+  rowHeight?: 'extra small' | 'small' | 'medium' | 'high' | 'auto';
   theme?: ThemeTokens;
   themeStyles?: Partial<React.CSSProperties>;
   disableEdits?: boolean;

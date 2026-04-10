@@ -2,8 +2,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+  min-width: 0;
   background: var(--rdt-canvas);
   border: 1px solid var(--rdt-border);
   border-radius: var(--rdt-radius);
@@ -11,6 +10,7 @@
   overflow: hidden;
   color: var(--rdt-text);
   font-family: var(--rdt-font);
+  box-sizing: border-box;
 }
 
 .headerBar {
@@ -18,6 +18,7 @@
   justify-content: space-between;
   gap: 16px;
   align-items: center;
+  min-width: 0;
   padding: 8px 10px;
   background: color-mix(in srgb, var(--rdt-surface-2) 82%, var(--rdt-canvas) 18%);
   backdrop-filter: blur(10px);
@@ -148,6 +149,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 0;
   padding: 8px 10px;
   border-top: 1px solid var(--rdt-border);
   background: var(--rdt-surface-2);
@@ -168,7 +170,10 @@
 .tableWrap {
   position: relative;
   flex: 1 1 auto;
-  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 160px;
   overflow: auto;
   background: var(--rdt-surface);
   scrollbar-gutter: stable both-edges;
@@ -461,9 +466,9 @@
   word-break: break-word;
 }
 
-.tableWrap[data-row-height='dynamic'] .textCell,
-.tableWrap[data-row-height='dynamic'] .html,
-.tableWrap[data-row-height='dynamic'] .markdown {
+.tableWrap[data-row-height='auto'] .textCell,
+.tableWrap[data-row-height='auto'] .html,
+.tableWrap[data-row-height='auto'] .markdown {
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
@@ -547,7 +552,7 @@
 .editorPopover {
   position: absolute;
   z-index: 8;
-  width: min(300px, calc(100% - 16px));
+  width: min(440px, calc(100% - 16px));
   padding: 8px;
   border: 1px solid var(--rdt-border);
   border-radius: 12px;
@@ -571,11 +576,41 @@
   min-width: 0;
 }
 
+.editorSingleLineInput {
+  min-height: 34px;
+}
+
 .editorTextarea {
   min-height: 180px;
   resize: vertical;
   line-height: 1.45;
   padding: 0;
+}
+
+.editorFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.editorHint,
+.editorError {
+  font-size: 12px;
+}
+
+.editorHint {
+  color: var(--rdt-text-soft);
+}
+
+.editorError {
+  color: var(--rdt-danger);
 }
 
 .editorInput:focus {

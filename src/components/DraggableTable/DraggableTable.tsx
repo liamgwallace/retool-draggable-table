@@ -34,7 +34,6 @@ type GroupNode = {
   depth: number;
 };
 type GroupOrderMap = Record<string, string[]>;
-
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const ROOT_GROUP_KEY = '__root__';
 const groupKeyFromPath = (path: string[]) => path.join('::');
@@ -70,7 +69,17 @@ const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabe
   return remaining;
 };
 
-const isTextAreaFormat = (format?: string) => new Set(['string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
+const isTextAreaFormat = (format?: string) => new Set(['multiline string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
+
+const validateInputValue = (value: string, column: TableColumn) => {
+  const format = (column.format ?? 'string').toLowerCase();
+  if (format === 'number' || format === 'progress') {
+    if (value === '') return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 'Enter a valid number.';
+  }
+  return null;
+};
 
 const estimateColumnWidth = (rows: RowData[], column: TableColumn) => {
   const labelWidth = (column.label ?? column.sourceKey).length * 9;
@@ -207,6 +216,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const [editorText, setEditorText] = useState('');
   const [editorMultiText, setEditorMultiText] = useState('');
   const [editorSelections, setEditorSelections] = useState<string[]>([]);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [internalLoading, setInternalLoading] = useState(false);
   const dragCleanup = useRef<(() => void) | null>(null);
@@ -335,7 +345,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   useEffect(() => () => clearDragListeners(), []);
 
+  const editorInteractionsEnabled = editable && !disableEdits && !loading && !internalLoading;
+
   useEffect(() => {
+    if (!editorInteractionsEnabled) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest(`.${styles.editorPopover}`)) return;
@@ -343,7 +356,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     };
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
-  }, []);
+  }, [editorInteractionsEnabled]);
 
   const startDrag = (rowKey: string, event: React.PointerEvent) => {
     if (disableReorder || loading || internalLoading) return;
@@ -535,12 +548,19 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     if (!editable || disableEdits || loading || internalLoading) return;
     const column = allColumns.find((item) => item.sourceKey === field);
     if (!column) return;
+    const validationError = validateInputValue(rawValue, column);
+    if (validationError) {
+      setEditorError(validationError);
+      return false;
+    }
+    setEditorError(null);
     const nextRow = { ...rowsByKey[rowKey], [field]: parseInputValue(rawValue, column) };
     syncRow(rowKey, nextRow);
     setEdits((current) => ({ ...current, [rowKey]: { ...(current[rowKey] ?? {}), [field]: nextRow[field] } }));
     const cell: SelectedCell = { rowKey, columnKey: field, value: nextRow[field] };
     setSelectedCell(cell);
     onChangeCell?.(cell);
+    return true;
   };
 
   const updateArrayCell = (rowKey: string, field: string, nextValue: string[]) => {
@@ -568,6 +588,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setActiveEditor({ rowKey, columnKey: column.sourceKey, rect, x: point.x, y: point.y });
     setEditorPosition(null);
     setEditorMultiText('');
+    setEditorError(null);
     if (format === 'multiple tags') {
       setEditorSelections(Array.isArray(value) ? value.map(String) : []);
       setEditorText('');
@@ -583,6 +604,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setEditorText('');
     setEditorMultiText('');
     setEditorSelections([]);
+    setEditorError(null);
   };
 
   const commitArrayEditor = (nextValue: string[]) => {
@@ -721,12 +743,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     '--rdt-selected': hexToRgba(theme?.highlight ?? theme?.primary, 0.24, 'rgba(219, 234, 254, 0.95)'),
     '--rdt-hover': hexToRgba(theme?.surfaceSecondary ?? theme?.primary, 0.18, 'rgba(248, 250, 252, 0.98)'),
     '--rdt-overlay': hexToRgba(theme?.canvas ?? theme?.surfaceSecondary ?? theme?.primary, 0.66, 'rgba(226, 232, 240, 0.66)'),
-    '--rdt-row-height': rowHeight === 'extra small' ? '20px' : rowHeight === 'small' ? '32px' : rowHeight === 'medium' ? '48px' : rowHeight === 'large' ? '64px' : 'auto',
-    '--rdt-row-pad-y': rowHeight === 'dynamic' ? '8px' : '0px',
-    '--rdt-row-font': rowHeight === 'extra small' ? '12px' : rowHeight === 'small' ? '13px' : rowHeight === 'medium' ? '13px' : rowHeight === 'large' ? '14px' : '13px',
-    '--rdt-row-line': rowHeight === 'dynamic' ? '1.35' : '1.2',
-    height: '100%',
-    maxHeight: '100%',
+    '--rdt-row-height': rowHeight === 'extra small' ? '20px' : rowHeight === 'small' ? '32px' : rowHeight === 'medium' ? '48px' : rowHeight === 'high' ? '64px' : 'auto',
+    '--rdt-row-pad-y': rowHeight === 'auto' ? '8px' : '0px',
+    '--rdt-row-font': rowHeight === 'extra small' ? '12px' : rowHeight === 'small' ? '13px' : rowHeight === 'medium' ? '13px' : rowHeight === 'high' ? '14px' : '13px',
+    '--rdt-row-line': rowHeight === 'auto' ? '1.35' : '1.2',
     ...themeStyles,
   } as React.CSSProperties;
 
@@ -786,7 +806,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   );
 
   return (
-    <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={0} onFocus={onFocus} onBlur={onBlur}>
+    <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={editorInteractionsEnabled ? 0 : undefined} onFocus={editorInteractionsEnabled ? onFocus : undefined} onBlur={editorInteractionsEnabled ? onBlur : undefined}>
       <div className={styles.headerBar}>
         <div className={styles.headerTitleWrap}>
           {showTitle ? <div className={styles.headerTitle}>{title}</div> : null}
@@ -873,11 +893,17 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               editorText={editorText}
               editorMultiText={editorMultiText}
               editorSelections={editorSelections}
+              editorError={editorError}
               options={availableOptionsForColumn(activeColumn)}
-              onChangeText={setEditorText}
+              onChangeText={(next) => {
+                setEditorText(next);
+                if (editorError) setEditorError(null);
+              }}
               onChangeMultiText={setEditorMultiText}
               onChangeSelections={setEditorSelections}
-              onCommitText={(next) => { commitEdit(activeEditor.rowKey, activeEditor.columnKey, next); closeEditor(); }}
+              onCommitText={(next) => {
+                if (commitEdit(activeEditor.rowKey, activeEditor.columnKey, next)) closeEditor();
+              }}
               onCommitLive={(next) => { if (activeColumn?.format === 'progress') commitProgressEditor(next); }}
               onCommitArray={commitArrayEditor}
               onClose={closeEditor}
@@ -954,6 +980,7 @@ const EditorPopover: React.FC<{
   editorText: string;
   editorMultiText: string;
   editorSelections: string[];
+  editorError: string | null;
   options: string[];
   onChangeText: (next: string) => void;
   onChangeMultiText: (next: string) => void;
@@ -962,9 +989,37 @@ const EditorPopover: React.FC<{
   onCommitLive?: (next: string) => void;
   onCommitArray: (next: string[]) => void;
   onClose: () => void;
-}> = ({ column, value, text, editorText, editorMultiText, editorSelections, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onClose }) => {
+}> = ({ column, value, text, editorText, editorMultiText, editorSelections, editorError, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onClose }) => {
   const format = (column.format ?? 'string').toLowerCase();
   const tagOptions = Array.from(new Set([...(Array.isArray(value) ? value.map(String) : []), ...options, text].flatMap((item) => String(item).split(',').map((entry) => entry.trim()).filter(Boolean))));
+  const renderEditorFooter = (hint?: string) => (
+    <div className={styles.editorFooter}>
+      <div className={styles.editorHint}>{hint ?? ''}</div>
+      <div className={styles.editorActions}>
+        <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
+        <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => onCommitText(editorText)}>Save</button>
+      </div>
+    </div>
+  );
+
+  const renderSingleLineEditor = (type?: React.HTMLInputTypeAttribute, placeholder?: string, hint = 'Enter to save') => (
+    <>
+      <input
+        className={`${styles.editorInput} ${styles.editorSingleLineInput}`}
+        type={type}
+        value={editorText}
+        placeholder={placeholder}
+        onChange={(event) => onChangeText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Escape') onClose();
+        }}
+        autoFocus
+      />
+      {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
+      {renderEditorFooter(hint)}
+    </>
+  );
 
   if (format === 'boolean') {
     return (
@@ -1007,20 +1062,7 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'date' || format === 'date time') {
-    return (
-      <input
-        className={styles.editorInput}
-        type={format === 'date' ? 'date' : 'datetime-local'}
-        value={editorText}
-        onChange={(event) => onChangeText(event.target.value)}
-        onBlur={() => onCommitText(editorText)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onCommitText(editorText);
-          if (event.key === 'Escape') onClose();
-        }}
-        autoFocus
-      />
-    );
+    return renderSingleLineEditor(format === 'date' ? 'date' : 'datetime-local');
   }
 
   if (format === 'multiple tags') {
@@ -1056,27 +1098,36 @@ const EditorPopover: React.FC<{
 
   if (isTextAreaFormat(format)) {
     return (
-      <textarea
-        className={`${styles.editorInput} ${styles.editorTextarea}`}
-        value={editorText}
-        onChange={(event) => onChangeText(event.target.value)}
-        onBlur={() => onCommitText(editorText)}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onCommitText(editorText);
-          if (event.key === 'Escape') onClose();
-        }}
-        autoFocus
-      />
+      <>
+        <textarea
+          className={`${styles.editorInput} ${styles.editorTextarea}`}
+          value={editorText}
+          onChange={(event) => onChangeText(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onCommitText(editorText);
+            if (event.key === 'Escape') onClose();
+          }}
+          autoFocus
+        />
+        <div className={styles.editorFooter}>
+          <div className={styles.editorHint}>Ctrl/Cmd+Enter to save</div>
+          <div className={styles.editorActions}>
+            <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
+            <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => onCommitText(editorText)}>Save</button>
+          </div>
+        </div>
+      </>
     );
+  }
+
+  if (format === 'number') {
+    return renderSingleLineEditor('number');
   }
 
   if (format === 'tag') {
     return (
       <>
-        <input className={styles.editorInput} value={editorText} placeholder="Set value" onChange={(event) => onChangeText(event.target.value)} onKeyDown={(event) => {
-          if (event.key === 'Enter') onCommitText(editorText);
-          if (event.key === 'Escape') onClose();
-        }} autoFocus />
+        {renderSingleLineEditor(undefined, 'Set value')}
         <div className={styles.editorOptionList}>
           {tagOptions.map((option) => (
             <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
@@ -1087,35 +1138,8 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'email') {
-    return (
-      <input
-        className={styles.editorInput}
-        type="email"
-        value={editorText}
-        onChange={(event) => onChangeText(event.target.value)}
-        onBlur={() => onCommitText(editorText)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onCommitText(editorText);
-          if (event.key === 'Escape') onClose();
-        }}
-        autoFocus
-      />
-    );
+    return renderSingleLineEditor('email');
   }
 
-  return (
-    <>
-      <input
-        className={styles.editorInput}
-        value={editorText}
-        onChange={(event) => onChangeText(event.target.value)}
-        onBlur={() => onCommitText(editorText)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onCommitText(editorText);
-          if (event.key === 'Escape') onClose();
-        }}
-        autoFocus
-      />
-    </>
-  );
+  return renderSingleLineEditor();
 };
