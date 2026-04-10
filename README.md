@@ -74,6 +74,11 @@ At a minimum, configure these inputs:
 4. `columnOrderingJson`
 5. `groupByColumnsJson` if you want grouped rows
 
+Common optional Stage 6 inputs:
+
+- `tagOptionsSources` when multiple tag columns should reuse the same option lists.
+- `showDisplayIndexColumn` when you want the leading `#` column that shows current display order.
+
 The shipped defaults already provide working sample data and sample columns, so the component renders immediately after adding it to an app.
 
 `primaryKey` and `indexColumn` are freeform text inputs in Retool now, not sample-value dropdowns. Enter the exact field names from your own row objects.
@@ -269,6 +274,125 @@ Example with the new tag-related and empty-state fields:
 ]
 ```
 
+Precise Stage 6 examples:
+
+Inline tag options with free text disabled:
+
+```json
+[
+  {
+    "sourceKey": "role",
+    "label": "Role",
+    "format": "tag",
+    "editable": true,
+    "tagOptions": ["Admin", "Editor", "Viewer"],
+    "allowFreeText": false
+  }
+]
+```
+
+Shared `tagOptionsSources` reused across columns:
+
+```json
+{
+  "tagOptionsSources": {
+    "roleTags": ["Admin", "Editor", "Viewer"],
+    "teamTags": ["Design", "Infrastructure", "Product", "Sales"]
+  },
+  "columnsJson": [
+    {
+      "sourceKey": "role",
+      "label": "Role",
+      "format": "tag",
+      "editable": true,
+      "tagOptionsSource": "roleTags",
+      "allowFreeText": false
+    },
+    {
+      "sourceKey": "teams",
+      "label": "Teams",
+      "format": "multiple tags",
+      "editable": true,
+      "tagOptionsSource": "teamTags"
+    }
+  ]
+}
+```
+
+`allowFreeText: false` on `multiple tags`:
+
+```json
+[
+  {
+    "sourceKey": "teams",
+    "label": "Teams",
+    "format": "multiple tags",
+    "editable": true,
+    "tagOptionsSource": "teamTags",
+    "allowFreeText": false
+  }
+]
+```
+
+Nullable tags and dates:
+
+```json
+[
+  {
+    "sourceKey": "role",
+    "label": "Role",
+    "format": "tag",
+    "editable": true,
+    "tagOptions": ["Admin", "Editor", "Viewer"],
+    "allowNull": true
+  },
+  {
+    "sourceKey": "teams",
+    "label": "Teams",
+    "format": "multiple tags",
+    "editable": true,
+    "tagOptionsSource": "teamTags",
+    "allowNull": true
+  },
+  {
+    "sourceKey": "createdAt",
+    "label": "Created at",
+    "format": "date",
+    "editable": true,
+    "allowNull": true
+  },
+  {
+    "sourceKey": "lastLoginAt",
+    "label": "Last login",
+    "format": "date time",
+    "editable": true,
+    "allowNull": true
+  }
+]
+```
+
+Column-specific `emptyDisplayValue`:
+
+```json
+[
+  {
+    "sourceKey": "website",
+    "label": "Website",
+    "format": "link",
+    "editable": true,
+    "emptyDisplayValue": "Add website"
+  },
+  {
+    "sourceKey": "createdAt",
+    "label": "Created at",
+    "format": "date",
+    "editable": true,
+    "allowNull": true,
+    "emptyDisplayValue": "No date set"
+  }
+]
+```
+
 Nullable chip/date example:
 
 ```json
@@ -420,6 +544,7 @@ Notes:
 - Tag editors resolve options in this order: `column.tagOptions`, then `column.tagOptionsSource` from `tagOptionsSources`, then values derived from current rows for that column.
 - Resolved options are trimmed and deduplicated before the editor renders them.
 - Row-derived values remain the fallback for backward compatibility when no inline or shared option source is provided.
+- If `allowFreeText` is `false`, make sure the resolved option list is non-empty or the editor will only offer existing selections plus Cancel.
 
 Inline vs shared sources:
 
@@ -439,6 +564,31 @@ Inline vs shared sources:
 - `tag` and `multiple tags` show a visible `Blank (save null)` option when `allowNull: true`.
 - `date` shows `Clear date` and `date time` shows `Clear date/time` when `allowNull: true`.
 - These actions save `null` explicitly; they do not change the existing meaning of `''` or `[]`.
+
+### `showDisplayIndexColumn`
+
+`showDisplayIndexColumn` controls the optional leading `#` column.
+
+Default value:
+
+```json
+false
+```
+
+Example:
+
+```json
+{
+  "showDisplayIndexColumn": true
+}
+```
+
+Notes:
+
+- The displayed values are zero-based display indexes.
+- This column reflects current rendered order after sorting, grouping, inserts, and drag-and-drop.
+- It is separate from `primaryKey` and separate from `indexColumn`.
+- The header label is `#`.
 
 ### `theme`
 
@@ -557,7 +707,7 @@ This object is spread directly into the outer component style.
 | `stickyHeader` | Keeps headers pinned while scrolling. |
 | `loading` | Shows loading overlay and blocks interaction. |
 | `addRowPosition` | Places add-row controls in the top bar or bottom bar. |
-| `rowHeight` | `extra small`, `small`, `medium`, `large`, or `dynamic`. |
+| `rowHeight` | `extra small`, `small`, `medium`, `high`, or `auto`. |
 | `disableEdits` | Temporarily blocks editing without fully disabling the component. |
 | `disableSave` | Disables save actions. |
 | `disableReorder` | Disables row drag-and-drop. |
@@ -1091,6 +1241,6 @@ Examples:
 
 - `changesetObject` is exposed to Retool as a JSON string, not a live object.
 - `markdown` values are rendered as markdown, and `html` values are rendered as HTML.
-- The leftmost numeric `ID` column in the UI is the current display index, not necessarily your row's database `id`.
+- When `showDisplayIndexColumn` is on, the leftmost numeric `#` column is the current zero-based display index, not your row's database `id`.
 - Group reordering only affects top-level groups.
 - `expandRow` exists as a declared Retool event but is not currently triggered by the component.
