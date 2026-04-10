@@ -1074,7 +1074,7 @@ const EditorPopover: React.FC<{
     </div>
   );
 
-  const renderSingleLineEditor = (type?: React.HTMLInputTypeAttribute, placeholder?: string, hint = 'Enter to save', nullActionLabel?: string) => (
+  const renderSingleLineEditor = (type?: React.HTMLInputTypeAttribute, placeholder?: string, hint = 'Enter to save', nullActionLabel?: string, disableSave = false) => (
     <>
       <input
         className={`${styles.editorInput} ${styles.editorSingleLineInput}`}
@@ -1083,13 +1083,20 @@ const EditorPopover: React.FC<{
         placeholder={placeholder}
         onChange={(event) => onChangeText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') onCommitText(editorText);
+          if (event.key === 'Enter' && !disableSave) onCommitText(editorText);
           if (event.key === 'Escape') onClose();
         }}
         autoFocus
       />
       {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
-      {renderEditorFooter(hint, nullActionLabel)}
+      <div className={styles.editorFooter}>
+        <div className={styles.editorHint}>{hint ?? ''}</div>
+        <div className={styles.editorActions}>
+          {allowNull && nullActionLabel ? <button type="button" className={styles.button} onClick={onCommitNull}>{nullActionLabel}</button> : null}
+          <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
+          <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => onCommitText(editorText)} disabled={disableSave}>Save</button>
+        </div>
+      </div>
     </>
   );
 
@@ -1200,7 +1207,7 @@ const EditorPopover: React.FC<{
   if (format === 'tag') {
     return (
       <>
-        {allowFreeText ? renderSingleLineEditor(undefined, 'Set value', 'Enter to save', 'Clear') : null}
+        {allowFreeText ? renderSingleLineEditor(undefined, 'Set value', 'Enter to save', 'Clear', editorText.trim() === '') : null}
         <div className={styles.editorOptionList}>
           {options.map((option) => (
             <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
