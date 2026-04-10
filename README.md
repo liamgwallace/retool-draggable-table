@@ -171,6 +171,7 @@ Notes:
 - Leave it blank if your rows do not include an order column.
 - This is not a dropdown anymore, so it works with any field name in your dataset.
 - Leading and trailing whitespace is ignored.
+- This is separate from the optional leading display-index column. That UI column only shows the row's current display order and is not used as row identity.
 
 Good uses:
 
@@ -519,7 +520,7 @@ This object is spread directly into the outer component style.
 | `disableSave` | Disables save actions. |
 | `disableReorder` | Disables row drag-and-drop. |
 | `disableAddRow` | Removes add-row buttons. |
-| `showDisplayIndexColumn` | Reserved toggle for the leading display-index column. Default: `false`. Behavior change lands in a later stage. |
+| `showDisplayIndexColumn` | Shows the leading display-order column. Default: `false`. This column displays the current row position, not the `primaryKey`. |
 | `title` | Header title text. |
 | `emptyMessage` | Empty-state message when there are no rows. |
 
@@ -818,6 +819,8 @@ This is often the cleanest setup in larger Retool apps because each query has on
 ## `indexColumn` and reorder behavior
 
 `indexColumn` changes how you typically persist row order.
+
+The optional left-side display-index column is only a visual indicator of the current rendered order. It is not the row's primary key, and turning it on does not change identity or persistence behavior.
 
 ### If `indexColumn` is blank
 

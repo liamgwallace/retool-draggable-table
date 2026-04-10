@@ -178,6 +178,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   disableSave = false,
   disableReorder = false,
   disableAddRow = false,
+  showDisplayIndexColumn = false,
   emptyMessage = 'No rows to display',
   title = 'Draggable Table',
   onModelChange,
@@ -746,7 +747,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     ...themeStyles,
   } as React.CSSProperties;
 
-  const totalColumnCount = visibleColumns.length + 2 + (multiSelectEnabled ? 1 : 0);
+  const totalColumnCount = visibleColumns.length + 1 + (multiSelectEnabled ? 1 : 0) + (showDisplayIndexColumn ? 1 : 0);
 
   const renderRow = (row: RenderRow, indentLevel = 0) => {
     const rowKey = row.__key as string;
@@ -762,7 +763,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
           <button className={styles.handleButton} style={{ marginLeft: `${indentLevel * 16}px` }} onPointerDown={(event) => { event.stopPropagation(); startDrag(rowKey, event); }} onClick={(event) => event.stopPropagation()} aria-label="Drag row">⋮⋮</button>
         </td>
         {multiSelectEnabled && <td className={styles.checkboxCell}><label className={styles.checkboxWrap}><input type="checkbox" checked={isSelected} onChange={() => toggleSelection(rowKey, true)} onClick={(event) => event.stopPropagation()} /><span className={styles.checkboxUi} aria-hidden="true" /></label></td>}
-        <td className={styles.indexCell}>{orderedKeys.indexOf(rowKey)}</td>
+        {showDisplayIndexColumn ? <td className={styles.indexCell}>{orderedKeys.indexOf(rowKey)}</td> : null}
         {visibleColumns.map((column) => {
           const value = row[column.sourceKey];
           const text = formatCellText(value, column);
@@ -841,7 +842,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               <tr>
                 <th className={styles.handleCol} />
                 {multiSelectEnabled && <th className={styles.checkboxCol} />}
-                <th className={styles.indexCol}>ID</th>
+                {showDisplayIndexColumn ? <th className={styles.indexCol}>#</th> : null}
                 {visibleColumns.map((column) => (
                   <th key={column.sourceKey} style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} title={column.description}>
                     <div className={styles.headerCellInner}>
