@@ -70,6 +70,7 @@ const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabe
 };
 
 const isTextAreaFormat = (format?: string) => new Set(['multiline string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
+const isNullableEditorFormat = (format?: string) => new Set(['tag', 'multiple tags', 'date', 'date time']).has((format ?? 'string').toLowerCase());
 
 const validateInputValue = (value: string, column: TableColumn, options: string[] = []) => {
   const format = (column.format ?? 'string').toLowerCase();
@@ -572,14 +573,23 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     return true;
   };
 
-  const updateArrayCell = (rowKey: string, field: string, nextValue: string[]) => {
-    if (!editable || disableEdits || loading || internalLoading) return;
+  const commitValue = (rowKey: string, field: string, nextValue: unknown) => {
+    if (!editable || disableEdits || loading || internalLoading) return false;
+    const column = allColumns.find((item) => item.sourceKey === field);
+    if (!column) return false;
+    if (nextValue === null && (!column.allowNull || !isNullableEditorFormat(column.format))) return false;
+    setEditorError(null);
     const nextRow = { ...rowsByKey[rowKey], [field]: nextValue };
     syncRow(rowKey, nextRow);
     setEdits((current) => ({ ...current, [rowKey]: { ...(current[rowKey] ?? {}), [field]: nextValue } }));
     const cell: SelectedCell = { rowKey, columnKey: field, value: nextValue };
     setSelectedCell(cell);
     onChangeCell?.(cell);
+    return true;
+  };
+
+  const updateArrayCell = (rowKey: string, field: string, nextValue: string[]) => {
+    commitValue(rowKey, field, nextValue);
   };
 
   const availableOptionsForColumn = (column: TableColumn) => tagOptionsByColumn.get(column.sourceKey) ?? [];
@@ -617,6 +627,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     }
     setEditorError(null);
     updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, nextValue);
+  };
+
+  const commitNullEditor = () => {
+    if (!activeEditor || !activeColumn?.allowNull || !isNullableEditorFormat(activeColumn.format)) return;
+    if (commitValue(activeEditor.rowKey, activeEditor.columnKey, null)) closeEditor();
   };
 
   const commitProgressEditor = (nextValue: string) => {
@@ -906,6 +921,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
               }}
               onCommitLive={(next) => { if (activeColumn?.format === 'progress') commitProgressEditor(next); }}
               onCommitArray={commitArrayEditor}
+              onCommitNull={commitNullEditor}
               onClose={closeEditor}
             />
           </div>
@@ -932,11 +948,13 @@ const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData
     );
   }
   if (format === 'tag') {
-    const label = text;
+    const label = extractTagValues(value, column.format)[0] ?? '';
+    if (!label) return <span className={`${styles.textCell} ${styles.emptyCellValue}`}>{getEmptyDisplayValue(column)}</span>;
     return <span className={styles.tag} style={{ background: chipColor(label), color: chipTextColor(label) }}>{label}</span>;
   }
   if (format === 'multiple tags') {
-    const tags = Array.isArray(value) ? value.map(String) : text.split(',').map((item) => item.trim()).filter(Boolean);
+    const tags = extractTagValues(value, column.format);
+    if (!tags.length) return <span className={`${styles.textCell} ${styles.emptyCellValue}`}>{getEmptyDisplayValue(column)}</span>;
     return <div className={styles.tags}>{tags.map((tag) => <span key={tag} className={styles.tag} style={{ background: chipColor(tag), color: chipTextColor(tag) }}>{tag}</span>)}</div>;
   }
   if (format === 'boolean') {
@@ -990,30 +1008,34 @@ const EditorPopover: React.FC<{
   onCommitText: (next: string) => void;
   onCommitLive?: (next: string) => void;
   onCommitArray: (next: string[]) => void;
+  onCommitNull: () => void;
   onClose: () => void;
-}> = ({ column, value, text, editorText, editorMultiText, editorSelections, editorError, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onClose }) => {
+}> = ({ column, value, text, editorText, editorMultiText, editorSelections, editorError, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onCommitNull, onClose }) => {
   const format = (column.format ?? 'string').toLowerCase();
   const allowFreeText = column.allowFreeText !== false;
-  const renderEditorFooter = (hint?: string) => (
+  const allowNull = column.allowNull === true && isNullableEditorFormat(column.format);
+  const renderEditorFooter = (hint?: string, nullActionLabel?: string) => (
     <div className={styles.editorFooter}>
       <div className={styles.editorHint}>{hint ?? ''}</div>
       <div className={styles.editorActions}>
+        {allowNull && nullActionLabel ? <button type="button" className={styles.button} onClick={onCommitNull}>{nullActionLabel}</button> : null}
         <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
         <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => onCommitText(editorText)}>Save</button>
       </div>
     </div>
   );
 
-  const renderCancelFooter = (hint?: string) => (
+  const renderCancelFooter = (hint?: string, nullActionLabel?: string) => (
     <div className={styles.editorFooter}>
       <div className={styles.editorHint}>{hint ?? ''}</div>
       <div className={styles.editorActions}>
+        {allowNull && nullActionLabel ? <button type="button" className={styles.button} onClick={onCommitNull}>{nullActionLabel}</button> : null}
         <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
       </div>
     </div>
   );
 
-  const renderSingleLineEditor = (type?: React.HTMLInputTypeAttribute, placeholder?: string, hint = 'Enter to save') => (
+  const renderSingleLineEditor = (type?: React.HTMLInputTypeAttribute, placeholder?: string, hint = 'Enter to save', nullActionLabel?: string) => (
     <>
       <input
         className={`${styles.editorInput} ${styles.editorSingleLineInput}`}
@@ -1028,7 +1050,7 @@ const EditorPopover: React.FC<{
         autoFocus
       />
       {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
-      {renderEditorFooter(hint)}
+      {renderEditorFooter(hint, nullActionLabel)}
     </>
   );
 
@@ -1073,11 +1095,12 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'date' || format === 'date time') {
-    return renderSingleLineEditor(format === 'date' ? 'date' : 'datetime-local');
+    return renderSingleLineEditor(format === 'date' ? 'date' : 'datetime-local', undefined, 'Enter to save', format === 'date' ? 'Clear date' : 'Clear date/time');
   }
 
   if (format === 'multiple tags') {
     const tags = editorSelections;
+    const nullSelected = value === null;
     return (
       <>
         {allowFreeText ? <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
@@ -1093,6 +1116,7 @@ const EditorPopover: React.FC<{
           if (event.key === 'Escape') onClose();
         }} autoFocus /> : null}
         <div className={styles.editorOptionList}>
+          {allowNull ? <button type="button" className={`${styles.editorOption} ${nullSelected ? styles.editorOptionSelected : ''}`} onClick={onCommitNull}><span className={styles.editorCheckboxRow}><span className={styles.booleanCheckbox} data-checked={nullSelected}><span className={styles.checkboxUi} aria-hidden="true" /></span><span>Blank (save null)</span></span></button> : null}
           {options.map((option) => {
             const selected = tags.includes(option);
             return <button key={option} type="button" className={`${styles.editorOption} ${selected ? styles.editorOptionSelected : ''}`} onClick={() => {
@@ -1137,10 +1161,12 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'tag') {
+    const nullSelected = value === null;
     return (
       <>
         {allowFreeText ? renderSingleLineEditor(undefined, 'Set value') : null}
         <div className={styles.editorOptionList}>
+          {allowNull ? <button type="button" className={`${styles.editorOption} ${nullSelected ? styles.editorOptionSelected : ''}`} onClick={onCommitNull}>Blank (save null)</button> : null}
           {options.map((option) => (
             <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
           ))}

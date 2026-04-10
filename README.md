@@ -222,7 +222,7 @@ Supported column properties:
 | `tagOptions` | No | Optional inline list of allowed or suggested tag values for `tag` and `multiple tags`. |
 | `tagOptionsSource` | No | Optional key into top-level `tagOptionsSources` for shared tag lists. |
 | `allowFreeText` | No | Controls whether `tag` and `multiple tags` editors permit custom values. Defaults to `true`. |
-| `allowNull` | No | Reserved contract flag for nullable `tag`, `multiple tags`, `date`, and `date time` editors. Default is off. |
+| `allowNull` | No | Enables an explicit `null` action for `tag`, `multiple tags`, `date`, and `date time` editors. Default is off. |
 | `emptyDisplayValue` | No | Optional per-column empty-cell placeholder text. Defaults to `Enter value`. |
 
 Supported `format` values:
@@ -232,11 +232,11 @@ Supported `format` values:
 | `string` | Plain text | Single-line text input with save/cancel actions |
 | `multiline string` | Plain text with preserved line breaks | Multiline textarea editor with save/cancel actions |
 | `number` | Plain text | Numeric input |
-| `date` | Localized date | Native date picker |
-| `date time` | Localized date + time | Native datetime input |
+| `date` | Localized date | Native date picker, with `Clear date` when `allowNull: true` |
+| `date time` | Localized date + time | Native datetime input, with `Clear date/time` when `allowNull: true` |
 | `boolean` | Checkbox-style toggle | Click to toggle or choose true/false |
-| `tag` | Colored tag chip | Text input or option picker using resolved tag options |
-| `multiple tags` | Multiple colored chips | Add/remove option selections, with custom entry only when free text is enabled |
+| `tag` | Colored tag chip | Text input or option picker using resolved tag options, plus a visible `Blank (save null)` action when `allowNull: true` |
+| `multiple tags` | Multiple colored chips | Add/remove option selections, with custom entry only when free text is enabled, plus a visible `Blank (save null)` action when `allowNull: true` |
 | `avatar` | Initials avatar plus subtext from `row.email` or `row.owner` | Text editing |
 | `link` | Clickable external link | Text editing |
 | `email` | `mailto:` link | Email input |
@@ -255,6 +255,9 @@ Notes:
 - `progress` expects a numeric value and uses a 0-100 slider editor.
 - Cells with `null`, `undefined`, `''`, or `[]` render a muted placeholder instead of appearing blank. The default placeholder is `Enter value`.
 - Set `emptyDisplayValue` on a column to override that placeholder for that column only.
+- For nullable tags and dates, `null` is only saved when the user explicitly chooses the null action in the editor. Clearing text, removing all multi-tag selections, or leaving a date input blank does not silently convert existing values to `null`.
+- For `multiple tags`, `[]` still means an intentionally empty list, while the explicit nullable action saves `null`.
+- Blank or whitespace-only tag values render as the empty placeholder instead of an empty chip.
 
 Example with the new tag-related and empty-state fields:
 
@@ -265,6 +268,23 @@ Example with the new tag-related and empty-state fields:
   { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "allowNull": true, "emptyDisplayValue": "Enter value" }
 ]
 ```
+
+Nullable chip/date example:
+
+```json
+[
+  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "tagOptions": ["Admin", "Editor", "Viewer"], "allowNull": true },
+  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "tagOptionsSource": "teamTags", "allowNull": true },
+  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "allowNull": true },
+  { "sourceKey": "lastLoginAt", "label": "Last login", "format": "date time", "editable": true, "allowNull": true }
+]
+```
+
+Null vs blank semantics:
+
+- `tag` and `date` or `date time`: `''` remains a blank string unless the user clicks the explicit null action.
+- `multiple tags`: `[]` remains an empty list unless the user clicks the explicit null action.
+- `null` is reserved for the deliberate `Blank (save null)` or clear action in those nullable editors.
 
 Example with a hidden field and tooltip:
 
@@ -412,6 +432,13 @@ Inline vs shared sources:
 - Omit it, or set it to `true`, to keep the existing permissive behavior.
 - Set `allowFreeText: false` on a `tag` column to hide free-text entry and allow saving only listed values.
 - Set `allowFreeText: false` on a `multiple tags` column to hide custom tag entry and restrict edits to the resolved option list.
+
+`allowNull` behavior:
+
+- Applies only to `tag`, `multiple tags`, `date`, and `date time`.
+- `tag` and `multiple tags` show a visible `Blank (save null)` option when `allowNull: true`.
+- `date` shows `Clear date` and `date time` shows `Clear date/time` when `allowNull: true`.
+- These actions save `null` explicitly; they do not change the existing meaning of `''` or `[]`.
 
 ### `theme`
 
