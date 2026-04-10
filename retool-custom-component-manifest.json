@@ -232,14 +232,6 @@
           "type": "array"
         },
         {
-          "name": "tagOptionsSources",
-          "initialValue": {},
-          "inspector": "text",
-          "label": "Tag Options Sources",
-          "description": "Optional shared tag lists keyed by source name for tag and multiple-tags columns.",
-          "type": "object"
-        },
-        {
           "name": "primaryKey",
           "initialValue": "id",
           "inspector": "text",
@@ -273,6 +265,41 @@
           "inspector": "hidden",
           "label": "Selected Row Key",
           "type": "string"
+        },
+        {
+          "name": "tagOptionsSources",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Tag Options Sources",
+          "type": "object"
+        },
+        {
+          "name": "theme",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Theme",
+          "type": "object"
+        },
+        {
+          "name": "themeStyles",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Theme Styles",
+          "type": "object"
+        },
+        {
+          "name": "selectedRow",
+          "initialValue": {},
+          "inspector": "hidden",
+          "label": "Selected Row",
+          "type": "object"
+        },
+        {
+          "name": "selectedCell",
+          "initialValue": {},
+          "inspector": "hidden",
+          "label": "Selected Cell",
+          "type": "object"
         },
         {
           "name": "allowGroupReorder",
@@ -377,7 +404,6 @@
           "initialValue": false,
           "inspector": "checkbox",
           "label": "Show Display Index Column",
-          "description": "Reserved for the optional leading display-position column. Default is off.",
           "type": "boolean"
         },
         {
@@ -418,34 +444,6 @@
             "auto"
           ],
           "type": "enumeration"
-        },
-        {
-          "name": "theme",
-          "initialValue": {},
-          "inspector": "text",
-          "label": "Theme",
-          "type": "object"
-        },
-        {
-          "name": "themeStyles",
-          "initialValue": {},
-          "inspector": "text",
-          "label": "Theme Styles",
-          "type": "object"
-        },
-        {
-          "name": "selectedRow",
-          "initialValue": {},
-          "inspector": "hidden",
-          "label": "Selected Row",
-          "type": "object"
-        },
-        {
-          "name": "selectedCell",
-          "initialValue": {},
-          "inspector": "hidden",
-          "label": "Selected Cell",
-          "type": "object"
         }
       ],
       "events": [],
