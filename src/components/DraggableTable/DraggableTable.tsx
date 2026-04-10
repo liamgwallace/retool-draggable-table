@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconArrowBackUp, IconArrowDownBar, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
-import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, markdownToHtml, moveKeys } from '../../lib/tableUtils';
+import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, getEmptyDisplayValue, hexToRgba, initials, isDisplayEmptyValue, isEditableFormat, markdownToHtml, moveKeys } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
 
 type DragState = {
@@ -768,8 +768,9 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
           const value = row[column.sourceKey];
           const text = formatCellText(value, column);
           const editableCell = editable && !disableEdits && column.editable !== false && isEditableFormat(column.format) && !loading && !internalLoading && !column.hidden;
+          const cellSelected = selectedCell?.rowKey === rowKey && selectedCell.columnKey === column.sourceKey;
           return (
-            <td key={column.sourceKey} className={styles.cell} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell && (column.format ?? 'string').toLowerCase() !== 'boolean') openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
+            <td key={column.sourceKey} className={`${styles.cell} ${editableCell ? styles.editableCell : ''} ${editableCell && cellSelected ? styles.editableCellActive : ''}`} data-editor-anchor="true" style={{ width: `${columnWidths[column.sourceKey] ?? column.width ?? 160}px`, textAlign: column.align ?? 'left' }} onClick={() => { const cell = { rowKey, columnKey: column.sourceKey, value }; setSelectedCell(cell); onClickCell?.(cell); }} onDoubleClick={(event) => { event.stopPropagation(); if (editableCell && (column.format ?? 'string').toLowerCase() !== 'boolean') openEditor(rowKey, column, value, (event.currentTarget as HTMLElement).getBoundingClientRect(), { x: event.clientX, y: event.clientY }); }}>
               <div className={styles.cellInner}>
                 <CellRenderer column={column} value={value} row={row} text={text} editable={editableCell} onToggleBoolean={() => commitEdit(rowKey, column.sourceKey, String(!Boolean(value)))} />
               </div>
@@ -912,6 +913,8 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
 const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData; text: string; editable: boolean; onToggleBoolean: () => void }> = ({ column, value, row, text, editable, onToggleBoolean }) => {
   const format = (column.format ?? 'string').toLowerCase();
+  const showsEmptyPlaceholder = isDisplayEmptyValue(value) && !new Set(['avatar', 'boolean', 'progress']).has(format);
+  if (showsEmptyPlaceholder) return <span className={`${styles.textCell} ${styles.emptyCellValue}`}>{getEmptyDisplayValue(column)}</span>;
   if (format === 'avatar') {
     const email = String(row.email ?? row.owner ?? '');
     return (

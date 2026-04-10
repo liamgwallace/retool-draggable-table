@@ -178,6 +178,10 @@ export const markdownToHtml = (value: unknown) => {
   return blocks.join('');
 };
 
+export const isDisplayEmptyValue = (value: unknown) => value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
+
+export const getEmptyDisplayValue = (column: TableColumn) => column.emptyDisplayValue ?? 'Enter value';
+
 export const formatCellText = (value: unknown, column: TableColumn) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (value === null || value === undefined) return '';

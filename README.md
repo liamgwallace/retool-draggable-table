@@ -223,7 +223,7 @@ Supported column properties:
 | `tagOptionsSource` | No | Optional key into top-level `tagOptionsSources` for shared tag lists. |
 | `allowFreeText` | No | Reserved contract flag for tag editors. Default behavior remains permissive when omitted or `true`. |
 | `allowNull` | No | Reserved contract flag for nullable `tag`, `multiple tags`, `date`, and `date time` editors. Default is off. |
-| `emptyDisplayValue` | No | Reserved per-column empty-cell placeholder text. Planned default is `Enter value`. |
+| `emptyDisplayValue` | No | Optional per-column empty-cell placeholder text. Defaults to `Enter value`. |
 
 Supported `format` values:
 
@@ -253,7 +253,8 @@ Notes:
 - `markdown` is rendered to HTML, so headings, lists, links, emphasis, and code blocks display in the cell.
 - `html` renders the cell value as HTML.
 - `progress` expects a numeric value and uses a 0-100 slider editor.
-- The new `tagOptions`, `tagOptionsSource`, `allowFreeText`, `allowNull`, and `emptyDisplayValue` fields are part of the public config contract now. Some of their editor and rendering behavior lands in later implementation stages.
+- Cells with `null`, `undefined`, `''`, or `[]` render a muted placeholder instead of appearing blank. The default placeholder is `Enter value`.
+- Set `emptyDisplayValue` on a column to override that placeholder for that column only.
 
 Example with the new tag-related and empty-state fields:
 
