@@ -234,52 +234,37 @@
         {
           "name": "primaryKey",
           "initialValue": "id",
-          "inspector": "select",
+          "inspector": "text",
           "label": "Primary Key",
-          "enumDefinition": [
-            "id",
-            "user",
-            "email",
-            "role"
-          ],
-          "type": "enumeration"
+          "type": "string"
         },
         {
           "name": "indexColumn",
-          "initialValue": "none",
-          "inspector": "select",
+          "initialValue": "",
+          "inspector": "text",
           "label": "Index Column",
-          "enumDefinition": [
-            "none",
-            "order",
-            "sortOrder"
-          ],
-          "type": "enumeration"
+          "type": "string"
         },
         {
-          "name": "addRowPosition",
-          "initialValue": "bottom",
-          "inspector": "segmented",
-          "label": "Button Position",
-          "enumDefinition": [
-            "top",
-            "bottom"
-          ],
-          "type": "enumeration"
+          "name": "title",
+          "initialValue": "Draggable Table",
+          "inspector": "text",
+          "label": "Title",
+          "type": "string"
         },
         {
-          "name": "rowHeight",
-          "initialValue": "small",
-          "inspector": "select",
-          "label": "Row Height",
-          "enumDefinition": [
-            "extra small",
-            "small",
-            "medium",
-            "high",
-            "auto"
-          ],
-          "type": "enumeration"
+          "name": "emptyMessage",
+          "initialValue": "No rows to display",
+          "inspector": "text",
+          "label": "Empty Message",
+          "type": "string"
+        },
+        {
+          "name": "selectedRowKey",
+          "initialValue": "",
+          "inspector": "hidden",
+          "label": "Selected Row Key",
+          "type": "string"
         },
         {
           "name": "allowGroupReorder",
@@ -394,6 +379,31 @@
           "type": "boolean"
         },
         {
+          "name": "addRowPosition",
+          "initialValue": "bottom",
+          "inspector": "segmented",
+          "label": "Button Position",
+          "enumDefinition": [
+            "top",
+            "bottom"
+          ],
+          "type": "enumeration"
+        },
+        {
+          "name": "rowHeight",
+          "initialValue": "small",
+          "inspector": "select",
+          "label": "Row Height",
+          "enumDefinition": [
+            "extra small",
+            "small",
+            "medium",
+            "high",
+            "auto"
+          ],
+          "type": "enumeration"
+        },
+        {
           "name": "theme",
           "initialValue": {},
           "inspector": "text",
@@ -420,27 +430,6 @@
           "inspector": "hidden",
           "label": "Selected Cell",
           "type": "object"
-        },
-        {
-          "name": "title",
-          "initialValue": "Draggable Table",
-          "inspector": "text",
-          "label": "Title",
-          "type": "string"
-        },
-        {
-          "name": "emptyMessage",
-          "initialValue": "No rows to display",
-          "inspector": "text",
-          "label": "Empty Message",
-          "type": "string"
-        },
-        {
-          "name": "selectedRowKey",
-          "initialValue": "",
-          "inspector": "hidden",
-          "label": "Selected Row Key",
-          "type": "string"
         }
       ],
       "events": [],

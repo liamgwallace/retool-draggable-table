@@ -76,6 +76,8 @@ At a minimum, configure these inputs:
 
 The shipped defaults already provide working sample data and sample columns, so the component renders immediately after adding it to an app.
 
+`primaryKey` and `indexColumn` are freeform text inputs in Retool now, not sample-value dropdowns. Enter the exact field names from your own row objects.
+
 Height mode note:
 
 - Fixed height is the stable supported mode for this component in Retool.
@@ -125,6 +127,50 @@ Guidance:
 - If you want reorder changes to be persisted to your database, include a dedicated sort field in your data and point `indexColumn` at it.
 - Arrays are supported, especially for `multiple tags` columns.
 - Objects are supported, especially for `html` or `markdown` columns that you want to stringify or enrich before display.
+
+### `primaryKey`
+
+`primaryKey` is a text input containing the row field name used for stable row identity.
+
+Default value:
+
+```text
+id
+```
+
+Examples:
+
+- `id`
+- `uuid`
+- `userId`
+
+Notes:
+
+- This is not a dropdown anymore, so it works with whatever key name your data actually uses.
+- Keep this pointed at a stable unique field whenever possible.
+- Leading and trailing whitespace is ignored.
+
+### `indexColumn`
+
+`indexColumn` is a text input containing the optional row field name that stores persisted row order.
+
+Default value:
+
+```text
+
+```
+
+Examples:
+
+- blank for no persisted order column
+- `sortOrder`
+- `position`
+
+Notes:
+
+- Leave it blank if your rows do not include an order column.
+- This is not a dropdown anymore, so it works with any field name in your dataset.
+- Leading and trailing whitespace is ignored.
 
 Good uses:
 
@@ -405,8 +451,8 @@ This object is spread directly into the outer component style.
 
 | Input | Purpose |
 | --- | --- |
-| `primaryKey` | Stable unique field for row identity. Default: `id`. |
-| `indexColumn` | Optional field representing saved order. Default: none. |
+| `primaryKey` | Text input for the stable unique field used as row identity. Default: `id`. |
+| `indexColumn` | Text input for the optional saved-order field. Leave blank to disable. |
 | `allowGroupReorder` | Enables drag handles on group headers, including nested groups. |
 | `allowCrossGroupDrag` | Lets rows move between groups and updates grouped fields. |
 | `multiSelectEnabled` | Enables checkboxes and multi-row block movement. |
@@ -722,7 +768,7 @@ This is often the cleanest setup in larger Retool apps because each query has on
 
 `indexColumn` changes how you typically persist row order.
 
-### If `indexColumn` is `none`
+### If `indexColumn` is blank
 
 This means the component is not reading a dedicated persisted order field from your input rows.
 

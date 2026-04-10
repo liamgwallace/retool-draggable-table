@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconArrowBackUp, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
+import { IconArrowBackUp, IconArrowDownBar, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
 import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, hexToRgba, initials, isEditableFormat, markdownToHtml, moveKeys } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
@@ -96,7 +96,7 @@ const ToolbarIcon = ({ kind }: { kind: 'save' | 'cancel' | 'add-top' | 'add-bott
   if (kind === 'cancel') return <IconArrowBackUp {...props} />;
   if (kind === 'add-top') return <IconRowInsertTop {...props} />;
   if (kind === 'add-bottom') return <IconRowInsertBottom {...props} />;
-  return <IconRowInsertBottom {...props} />;
+  return <IconArrowDownBar {...props} />;
 };
 
 const inputValueFor = (value: unknown, column: TableColumn) => {
@@ -285,6 +285,8 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const selectedRows = useMemo<RenderRow[]>(() => selectedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [selectedKeys, rowsByKey]);
   const selectedRow = selectedRows[0] ?? null;
   const isDirty = changesetArray.length > 0 || reorderChangeset.length > 0 || newRows.length > 0;
+  const showTopActions = addRowPosition === 'top';
+  const showTopBar = showTitle || showTopActions;
 
   const model: TableModel = useMemo(() => ({
     selectedRow,
@@ -682,12 +684,6 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
       next.splice(index + 1, 0, key);
       return next;
     });
-    else if (position === 'bottom' && selectedKeys.length === 1) setOrderedKeys((current) => {
-      const index = current.indexOf(selectedKeys[0]!);
-      const next = [...current];
-      next.splice(index + 1, 0, key);
-      return next;
-    });
     else setOrderedKeys((current) => [...current, key]);
     setSelectedKeys([key]);
   };
@@ -807,13 +803,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   return (
     <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={editorInteractionsEnabled ? 0 : undefined} onFocus={editorInteractionsEnabled ? onFocus : undefined} onBlur={editorInteractionsEnabled ? onBlur : undefined}>
-      <div className={styles.headerBar}>
+      {showTopBar ? <div className={styles.headerBar}>
         <div className={styles.headerTitleWrap}>
           {showTitle ? <div className={styles.headerTitle}>{title}</div> : null}
-          <div className={styles.headerMeta}>{orderedRows.length} rows</div>
-          {showSavePrompt && isDirty && <div className={styles.dirtyBadge}>Unsaved changes</div>}
         </div>
-        {addRowPosition === 'top' && <div className={styles.headerActions}>
+        {showTopActions && <div className={styles.headerActions}>
           {saveVisible && (
             <button className={`${styles.iconButton} ${styles.primaryIconButton}`} title="Save" aria-label="Save" disabled={disableSave || loading || internalLoading} onClick={() => { onClickToolbar?.('save'); void save(); }}>
               <ToolbarIcon kind="save" />
@@ -822,7 +816,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
           <button className={styles.iconButton} title="Undo changes" aria-label="Undo changes" onClick={() => { onClickToolbar?.('cancel'); clearChanges(); }} disabled={loading || internalLoading}>
             <ToolbarIcon kind="cancel" />
           </button>
-          {addRowPosition === 'top' && !disableAddRow && (
+          {!disableAddRow && (
             <>
               <button className={styles.iconButton} title="Insert row top" aria-label="Insert row top" onClick={() => { onClickToolbar?.('add-top'); addRow('top'); }} disabled={loading || internalLoading}>
                 <ToolbarIcon kind="add-top" />
@@ -836,7 +830,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
             </>
           )}
         </div>}
-      </div>
+      </div> : null}
 
       {loading || internalLoading ? <div className={styles.loadingOverlay}><div className={styles.loaderSpinner} aria-hidden="true" /></div> : null}
 

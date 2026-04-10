@@ -2,6 +2,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-width: 0;
   background: var(--rdt-canvas);
   border: 1px solid var(--rdt-border);
@@ -37,28 +38,6 @@
   font-family: var(--rdt-label-font);
   font-weight: var(--rdt-label-weight);
   letter-spacing: -0.02em;
-}
-
-.headerMeta,
-.dirtyBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.headerMeta {
-  background: color-mix(in srgb, var(--rdt-surface) 92%, var(--rdt-canvas) 8%);
-  color: var(--rdt-text-soft);
-  border: 1px solid var(--rdt-border);
-}
-
-.dirtyBadge {
-  background: var(--rdt-primary-soft);
-  color: var(--rdt-primary);
-  border: 1px solid var(--rdt-primary-strong);
 }
 
 .headerActions {
@@ -173,7 +152,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 160px;
+  min-height: 0;
   overflow: auto;
   background: var(--rdt-surface);
   scrollbar-gutter: stable both-edges;
