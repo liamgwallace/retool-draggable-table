@@ -123,7 +123,7 @@ Default sample row shape:
 }
 ```
 
-The shipped sample `dataSource` now includes 16 rows so you can test scrolling, selection, grouping, and edit behavior with a less trivial dataset.
+The shipped sample `dataSource` now includes 15 rows so you can test scrolling, selection, nested grouping, nullable fields, and edit behavior with a less trivial dataset.
 
 Guidance:
 
@@ -162,7 +162,7 @@ Notes:
 Default value:
 
 ```text
-
+sortOrder
 ```
 
 Examples:
@@ -193,19 +193,19 @@ Default value:
 ```json
 [
   { "sourceKey": "user", "label": "User", "format": "avatar", "editable": true, "width": 260, "description": "Avatar-style name column." },
-  { "sourceKey": "department", "label": "Department", "format": "string", "editable": true, "width": 160, "description": "Plain text string column." },
+  { "sourceKey": "department", "label": "Department", "format": "string", "editable": true, "width": 160, "description": "Plain text string column.", "emptyDisplayValue": "Add department" },
   { "sourceKey": "email", "label": "Email", "format": "email", "editable": true, "width": 260, "description": "Click-to-email address.", "resizable": false },
-  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "width": 120, "description": "Colored tag chip." },
+  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "width": 120, "description": "Strict single-tag role column.", "tagOptionsSource": "roleTags", "allowFreeText": false, "allowNull": true },
   { "sourceKey": "enabled", "label": "Enabled", "format": "boolean", "editable": true, "width": 100, "align": "center", "description": "Boolean toggle column." },
   { "sourceKey": "employeeNumber", "label": "Employee #", "format": "number", "editable": true, "width": 120, "align": "right", "description": "Numeric editor column." },
-  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140, "description": "Date picker column." },
-  { "sourceKey": "lastLoginAt", "label": "Last login", "format": "date time", "editable": true, "width": 180, "description": "Date and time editor column." },
-  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 260, "description": "Multi-tag chip column." },
-  { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240, "description": "External link column." },
-  { "sourceKey": "bioHtml", "label": "Bio HTML", "format": "html", "editable": true, "width": 320, "description": "Raw HTML rendering column." },
-  { "sourceKey": "notesMarkdown", "label": "Notes", "format": "markdown", "editable": true, "width": 320, "description": "Markdown rendering column." },
+  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "width": 140, "description": "Date picker column.", "allowNull": true, "emptyDisplayValue": "No start date" },
+  { "sourceKey": "lastLoginAt", "label": "Last login", "format": "date time", "editable": true, "width": 180, "description": "Date and time editor column.", "allowNull": true, "emptyDisplayValue": "No recent login" },
+  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "width": 260, "description": "Shared multi-tag chip column.", "tagOptionsSource": "teamTags", "allowFreeText": false, "allowNull": true, "emptyDisplayValue": "No teams assigned" },
+  { "sourceKey": "website", "label": "Website", "format": "link", "editable": true, "width": 240, "description": "External link column.", "emptyDisplayValue": "Add website" },
+  { "sourceKey": "bioHtml", "label": "Bio HTML", "format": "html", "editable": true, "width": 320, "description": "Raw HTML rendering column.", "emptyDisplayValue": "Add HTML bio" },
+  { "sourceKey": "notesMarkdown", "label": "Notes", "format": "markdown", "editable": true, "width": 320, "description": "Markdown rendering column.", "emptyDisplayValue": "Add markdown notes" },
   { "sourceKey": "progress", "label": "Progress", "format": "progress", "editable": true, "width": 180, "align": "center", "description": "0-100 progress slider column." },
-  { "sourceKey": "internalNotes", "label": "Internal notes", "format": "multiline string", "editable": true, "hidden": true, "resizable": false, "description": "Hidden multiline text sample column." }
+  { "sourceKey": "internalNotes", "label": "Internal notes", "format": "multiline string", "editable": true, "hidden": true, "resizable": false, "description": "Hidden multiline text sample column.", "emptyDisplayValue": "Add internal notes" }
 ]
 ```
 
@@ -237,11 +237,11 @@ Supported `format` values:
 | `string` | Plain text | Single-line text input with save/cancel actions |
 | `multiline string` | Plain text with preserved line breaks | Multiline textarea editor with save/cancel actions |
 | `number` | Plain text | Numeric input |
-| `date` | Localized date | Native date picker, with `Clear date` when `allowNull: true` |
-| `date time` | Localized date + time | Native datetime input, with `Clear date/time` when `allowNull: true` |
+| `date` | Localized date | Native date picker, with a `Clear` action when `allowNull: true` |
+| `date time` | Localized date + time | Native datetime input, with a `Clear` action when `allowNull: true` |
 | `boolean` | Checkbox-style toggle | Click to toggle or choose true/false |
-| `tag` | Colored tag chip | Text input or option picker using resolved tag options, plus a visible `Blank (save null)` action when `allowNull: true` |
-| `multiple tags` | Multiple colored chips | Add/remove option selections, with custom entry only when free text is enabled, plus a visible `Blank (save null)` action when `allowNull: true` |
+| `tag` | Colored tag chip | Text input or option picker using resolved tag options, plus a footer `Clear` action when `allowNull: true` |
+| `multiple tags` | Multiple colored chips | Add/remove option selections, with custom entry only when free text is enabled, plus a footer `Clear` action when `allowNull: true` |
 | `avatar` | Initials avatar plus subtext from `row.email` or `row.owner` | Text editing |
 | `link` | Clickable external link | Text editing |
 | `email` | `mailto:` link | Email input |
@@ -408,7 +408,7 @@ Null vs blank semantics:
 
 - `tag` and `date` or `date time`: `''` remains a blank string unless the user clicks the explicit null action.
 - `multiple tags`: `[]` remains an empty list unless the user clicks the explicit null action.
-- `null` is reserved for the deliberate `Blank (save null)` or clear action in those nullable editors.
+- `null` is reserved for the deliberate `Clear` action in those nullable editors.
 
 Example with a hidden field and tooltip:
 
@@ -463,7 +463,7 @@ Practical tip:
 Default value:
 
 ```json
-[]
+["role", "enabled"]
 ```
 
 How it works:
@@ -505,10 +505,28 @@ This produces nested groups such as:
 Important behavior:
 
 - `allowGroupReorder` adds drag handles to every group level. Sibling groups can be reordered, and nested groups can be moved under a different parent when `allowCrossGroupDrag` is enabled.
+- `collapsibleGroups` makes each group header clickable so rows can be expanded or collapsed in place.
 - `allowCrossGroupDrag` updates each moved row's grouped field values to match the target group path.
 - If `allowCrossGroupDrag` is `false`, rows cannot be dropped into a different group.
 - Empty nested groups stay visible as drop targets after their rows have been moved out.
 - When adding a new row inside a grouped table, the new row inherits the selected row's group path when exactly one row is selected.
+
+### `collapsibleGroups`
+
+`collapsibleGroups` controls whether grouped tables show expandable group headers.
+
+Default value:
+
+```json
+true
+```
+
+Notes:
+
+- When enabled, clicking a group header toggles that group open or closed.
+- The group header shows a chevron to the right of the row-count badge.
+- The drag handle stays separate, so dragging a group does not accidentally toggle it.
+- When disabled, grouped sections always stay expanded.
 
 ### `tagOptionsSources`
 
@@ -517,7 +535,10 @@ Important behavior:
 Default value:
 
 ```json
-{}
+{
+  "roleTags": ["Admin", "Editor", "Viewer"],
+  "teamTags": ["Compliance", "Design", "Infrastructure", "Product", "Sales", "Security", "Workplace"]
+}
 ```
 
 Example:
@@ -561,8 +582,8 @@ Inline vs shared sources:
 `allowNull` behavior:
 
 - Applies only to `tag`, `multiple tags`, `date`, and `date time`.
-- `tag` and `multiple tags` show a visible `Blank (save null)` option when `allowNull: true`.
-- `date` shows `Clear date` and `date time` shows `Clear date/time` when `allowNull: true`.
+- `tag` and `multiple tags` show a footer `Clear` action when `allowNull: true`.
+- `date` and `date time` show a footer `Clear` action when `allowNull: true`.
 - These actions save `null` explicitly; they do not change the existing meaning of `''` or `[]`.
 
 ### `showDisplayIndexColumn`
@@ -696,6 +717,7 @@ This object is spread directly into the outer component style.
 | `primaryKey` | Text input for the stable unique field used as row identity. Default: `id`. |
 | `indexColumn` | Text input for the optional saved-order field. Leave blank to disable. |
 | `tagOptionsSources` | Shared named tag lists for columns that use `tagOptionsSource`. Default: `{}`. |
+| `collapsibleGroups` | Makes grouped sections expandable/collapsible from the group header. Default: `true`. |
 | `allowGroupReorder` | Enables drag handles on group headers, including nested groups. |
 | `allowCrossGroupDrag` | Lets rows move between groups and updates grouped fields. |
 | `multiSelectEnabled` | Enables checkboxes and multi-row block movement. |

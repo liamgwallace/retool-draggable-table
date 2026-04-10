@@ -250,6 +250,33 @@
   gap: 6px;
 }
 
+.groupToggleButton {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.groupToggleButton:hover .groupChip,
+.groupToggleButton:focus-visible .groupChip {
+  color: var(--rdt-primary);
+}
+
+.groupToggleButton:focus-visible {
+  outline: none;
+}
+
+.groupToggleButton:focus-visible .groupChip {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .groupSpacer {
   display: inline-block;
   width: 20px;
@@ -263,6 +290,15 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--rdt-text);
+}
+
+.groupToggleIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--rdt-text-soft);
 }
 
 .groupChip span {

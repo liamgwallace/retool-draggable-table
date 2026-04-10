@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconArrowBackUp, IconArrowDownBar, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
+import { IconArrowBackUp, IconArrowDownBar, IconChevronDown, IconChevronRight, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
 import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, extractTagValues, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, getEmptyDisplayValue, hexToRgba, initials, isDisplayEmptyValue, isEditableFormat, markdownToHtml, moveKeys, resolveTagOptions } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
@@ -71,6 +71,22 @@ const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabe
 
 const isTextAreaFormat = (format?: string) => new Set(['multiline string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
 const isNullableEditorFormat = (format?: string) => new Set(['tag', 'multiple tags', 'date', 'date time']).has((format ?? 'string').toLowerCase());
+
+const openExternalLink = (href: string | null | undefined) => {
+  const nextHref = href?.trim();
+  if (!nextHref || nextHref === '#') return;
+  window.open(nextHref, '_blank', 'noopener,noreferrer');
+};
+
+const handleExternalLinkClick = (event: React.MouseEvent<HTMLElement>) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const link = target.closest('a');
+  if (!link) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openExternalLink(link.getAttribute('href'));
+};
 
 const validateInputValue = (value: string, column: TableColumn, options: string[] = []) => {
   const format = (column.format ?? 'string').toLowerCase();
@@ -166,6 +182,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   columnOrdering,
   groupByColumns = [],
   tagOptionsSources = {},
+  collapsibleGroups = false,
   allowCrossGroupDrag = false,
   multiSelectEnabled = false,
   editable = true,
@@ -215,6 +232,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   const [newRows, setNewRows] = useState<RowData[]>([]);
   const [baselineKeys, setBaselineKeys] = useState<string[]>(orderedKeys);
   const [groupOrders, setGroupOrders] = useState<GroupOrderMap>({});
+  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<string[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
   const [groupDragState, setGroupDragState] = useState<GroupDragState>(null);
   const [dropTarget, setDropTarget] = useState<DragTarget>(null);
@@ -258,6 +276,10 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     }
     setGroupOrders((current) => mergeGroupOrdersFromRows(current, initialRows, groupByColumns));
   }, [groupByColumns, initialRows]);
+
+  useEffect(() => {
+    if (!groupByColumns.length) setCollapsedGroupKeys([]);
+  }, [groupByColumns]);
 
   useEffect(() => {
     if (!groupByColumns.length) return;
@@ -538,6 +560,11 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     };
   };
 
+  const toggleGroupCollapsed = (groupKey: string) => {
+    if (!collapsibleGroups) return;
+    setCollapsedGroupKeys((current) => current.includes(groupKey) ? current.filter((key) => key !== groupKey) : [...current, groupKey]);
+  };
+
   const toggleSelection = (rowKey: string, additive: boolean) => {
     setSelectedCell(null);
     setSelectedKeys((current) => {
@@ -800,27 +827,39 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     );
   };
 
-  const renderGroupNode = (group: GroupNode): React.ReactNode => (
-    <React.Fragment key={group.key}>
-      <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.invalid ? styles.invalidDrop : groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.key}>
-        <td colSpan={totalColumnCount}>
-          <div className={styles.groupChipWrap} style={{ paddingLeft: `${group.depth * 16}px` }}>
-            {allowGroupReorder ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.path.join(' / ')}`} onPointerDown={(event) => startGroupDrag(group.key, event)}>⋮⋮</button> : <span className={styles.groupSpacer} aria-hidden="true" />}
-            <div className={styles.groupChip}>{group.label}<span>{countGroupRows(group)}</span></div>
-          </div>
-        </td>
-      </tr>
-      {!group.children.length && !group.rows.length ? (
-        <tr>
+  const renderGroupNode = (group: GroupNode): React.ReactNode => {
+    const isCollapsed = collapsibleGroups && collapsedGroupKeys.includes(group.key);
+    const ToggleIcon = isCollapsed ? IconChevronRight : IconChevronDown;
+    return (
+      <React.Fragment key={group.key}>
+        <tr className={`${styles.groupRow} ${groupDragState?.targetKey === group.key ? (groupDragState.invalid ? styles.invalidDrop : groupDragState.insertBefore ? styles.dropBefore : styles.dropAfter) : ''}`} data-group-key={group.key}>
           <td colSpan={totalColumnCount}>
-            <div data-group-drop-zone={group.key} data-group-path={JSON.stringify(group.path)} className={`${styles.emptyGroupDropZone} ${samePath(dropTarget?.groupPath ?? null, group.path) ? (dropTarget?.invalid ? styles.invalidDropZone : styles.activeDropZone) : ''}`} style={{ marginLeft: `${group.depth * 16}px` }}>Drop rows into {group.path.join(' / ')}</div>
+            <div className={styles.groupChipWrap} style={{ paddingLeft: `${group.depth * 16}px` }}>
+              {allowGroupReorder ? <button type="button" className={styles.groupHandleButton} aria-label={`Drag group ${group.path.join(' / ')}`} onPointerDown={(event) => startGroupDrag(group.key, event)} onClick={(event) => event.stopPropagation()}>⋮⋮</button> : <span className={styles.groupSpacer} aria-hidden="true" />}
+              {collapsibleGroups ? (
+                <button type="button" className={styles.groupToggleButton} onClick={() => toggleGroupCollapsed(group.key)} aria-expanded={!isCollapsed} aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} group ${group.path.join(' / ')}`}>
+                  <span className={styles.groupChip}>
+                    {group.label}
+                    <span>{countGroupRows(group)}</span>
+                    <span className={styles.groupToggleIcon} aria-hidden="true"><ToggleIcon size={14} stroke={2} /></span>
+                  </span>
+                </button>
+              ) : <div className={styles.groupChip}>{group.label}<span>{countGroupRows(group)}</span></div>}
+            </div>
           </td>
         </tr>
-      ) : null}
-      {group.children.map((child) => renderGroupNode(child))}
-      {group.rows.map((row) => renderRow(row, group.depth + 1))}
-    </React.Fragment>
-  );
+        {!isCollapsed && !group.children.length && !group.rows.length ? (
+          <tr>
+            <td colSpan={totalColumnCount}>
+              <div data-group-drop-zone={group.key} data-group-path={JSON.stringify(group.path)} className={`${styles.emptyGroupDropZone} ${samePath(dropTarget?.groupPath ?? null, group.path) ? (dropTarget?.invalid ? styles.invalidDropZone : styles.activeDropZone) : ''}`} style={{ marginLeft: `${group.depth * 16}px` }}>Drop rows into {group.path.join(' / ')}</div>
+            </td>
+          </tr>
+        ) : null}
+        {!isCollapsed ? group.children.map((child) => renderGroupNode(child)) : null}
+        {!isCollapsed ? group.rows.map((row) => renderRow(row, group.depth + 1)) : null}
+      </React.Fragment>
+    );
+  };
 
   return (
     <div className={styles.shell} ref={tableRef} style={themeVars} tabIndex={editorInteractionsEnabled ? 0 : undefined} onFocus={editorInteractionsEnabled ? onFocus : undefined} onBlur={editorInteractionsEnabled ? onBlur : undefined}>
@@ -975,16 +1014,16 @@ const CellRenderer: React.FC<{ column: TableColumn; value: unknown; row: RowData
     );
   }
   if (format === 'link') {
-    return <a className={styles.link} href={String(value ?? '#')} target="_blank" rel="noreferrer">{text}</a>;
+    return <a className={styles.link} href={String(value ?? '#')} target="_blank" rel="noreferrer" onClick={handleExternalLinkClick}>{text}</a>;
   }
   if (format === 'email') {
     return <a className={styles.link} href={`mailto:${String(value ?? '')}`}>{text}</a>;
   }
   if (format === 'markdown') {
-    return <div className={styles.markdown} dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />;
+    return <div className={styles.markdown} onClick={handleExternalLinkClick} dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />;
   }
   if (format === 'html') {
-    return <div className={styles.html} dangerouslySetInnerHTML={{ __html: String(value ?? '') }} />;
+    return <div className={styles.html} onClick={handleExternalLinkClick} dangerouslySetInnerHTML={{ __html: String(value ?? '') }} />;
   }
   if (format === 'progress') {
     const percent = Number(value ?? 0);
@@ -1095,12 +1134,11 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'date' || format === 'date time') {
-    return renderSingleLineEditor(format === 'date' ? 'date' : 'datetime-local', undefined, 'Enter to save', format === 'date' ? 'Clear date' : 'Clear date/time');
+    return renderSingleLineEditor(format === 'date' ? 'date' : 'datetime-local', undefined, 'Enter to save', 'Clear');
   }
 
   if (format === 'multiple tags') {
     const tags = editorSelections;
-    const nullSelected = value === null;
     return (
       <>
         {allowFreeText ? <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
@@ -1116,7 +1154,6 @@ const EditorPopover: React.FC<{
           if (event.key === 'Escape') onClose();
         }} autoFocus /> : null}
         <div className={styles.editorOptionList}>
-          {allowNull ? <button type="button" className={`${styles.editorOption} ${nullSelected ? styles.editorOptionSelected : ''}`} onClick={onCommitNull}><span className={styles.editorCheckboxRow}><span className={styles.booleanCheckbox} data-checked={nullSelected}><span className={styles.checkboxUi} aria-hidden="true" /></span><span>Blank (save null)</span></span></button> : null}
           {options.map((option) => {
             const selected = tags.includes(option);
             return <button key={option} type="button" className={`${styles.editorOption} ${selected ? styles.editorOptionSelected : ''}`} onClick={() => {
@@ -1127,7 +1164,7 @@ const EditorPopover: React.FC<{
           })}
         </div>
         {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
-        {!allowFreeText ? renderCancelFooter('Select from the listed values') : null}
+        {allowFreeText ? renderCancelFooter(undefined, allowNull ? 'Clear' : undefined) : renderCancelFooter('Select from the listed values', allowNull ? 'Clear' : undefined)}
       </>
     );
   }
@@ -1161,18 +1198,16 @@ const EditorPopover: React.FC<{
   }
 
   if (format === 'tag') {
-    const nullSelected = value === null;
     return (
       <>
-        {allowFreeText ? renderSingleLineEditor(undefined, 'Set value') : null}
+        {allowFreeText ? renderSingleLineEditor(undefined, 'Set value', 'Enter to save', 'Clear') : null}
         <div className={styles.editorOptionList}>
-          {allowNull ? <button type="button" className={`${styles.editorOption} ${nullSelected ? styles.editorOptionSelected : ''}`} onClick={onCommitNull}>Blank (save null)</button> : null}
           {options.map((option) => (
             <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
           ))}
         </div>
         {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
-        {!allowFreeText ? renderCancelFooter('Select from the listed values') : null}
+        {!allowFreeText ? renderCancelFooter('Select from the listed values', 'Clear') : null}
       </>
     );
   }

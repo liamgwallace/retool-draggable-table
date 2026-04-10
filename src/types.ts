@@ -111,6 +111,7 @@ export interface DraggableTableProps {
   columnOrdering?: string[];
   groupByColumns?: string[];
   tagOptionsSources?: Record<string, string[]>;
+  collapsibleGroups?: boolean;
   allowGroupReorder?: boolean;
   allowCrossGroupDrag?: boolean;
   multiSelectEnabled?: boolean;
