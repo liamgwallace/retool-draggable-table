@@ -221,7 +221,7 @@ Supported column properties:
 | `colorSeed` | No | Reserved in the type, not currently used by rendering. |
 | `tagOptions` | No | Optional inline list of allowed or suggested tag values for `tag` and `multiple tags`. |
 | `tagOptionsSource` | No | Optional key into top-level `tagOptionsSources` for shared tag lists. |
-| `allowFreeText` | No | Reserved contract flag for tag editors. Default behavior remains permissive when omitted or `true`. |
+| `allowFreeText` | No | Controls whether `tag` and `multiple tags` editors permit custom values. Defaults to `true`. |
 | `allowNull` | No | Reserved contract flag for nullable `tag`, `multiple tags`, `date`, and `date time` editors. Default is off. |
 | `emptyDisplayValue` | No | Optional per-column empty-cell placeholder text. Defaults to `Enter value`. |
 
@@ -235,8 +235,8 @@ Supported `format` values:
 | `date` | Localized date | Native date picker |
 | `date time` | Localized date + time | Native datetime input |
 | `boolean` | Checkbox-style toggle | Click to toggle or choose true/false |
-| `tag` | Colored tag chip | Text input with suggested values from existing rows |
-| `multiple tags` | Multiple colored chips | Add/remove tag values from existing and typed options |
+| `tag` | Colored tag chip | Text input or option picker using resolved tag options |
+| `multiple tags` | Multiple colored chips | Add/remove option selections, with custom entry only when free text is enabled |
 | `avatar` | Initials avatar plus subtext from `row.email` or `row.owner` | Text editing |
 | `link` | Clickable external link | Text editing |
 | `email` | `mailto:` link | Email input |
@@ -397,7 +397,21 @@ Use it from `columnsJson` with `tagOptionsSource`:
 Notes:
 
 - This is a shared config surface for `tag` and `multiple tags` columns.
-- Stage 1 adds the input and type contract only. Full tag-option resolution behavior is implemented later.
+- Tag editors resolve options in this order: `column.tagOptions`, then `column.tagOptionsSource` from `tagOptionsSources`, then values derived from current rows for that column.
+- Resolved options are trimmed and deduplicated before the editor renders them.
+- Row-derived values remain the fallback for backward compatibility when no inline or shared option source is provided.
+
+Inline vs shared sources:
+
+- Use `tagOptions` when a column has its own small, local option list.
+- Use `tagOptionsSource` when multiple columns should reuse the same named tag list from `tagOptionsSources`.
+- If both are present, `tagOptions` wins.
+
+`allowFreeText` behavior:
+
+- Omit it, or set it to `true`, to keep the existing permissive behavior.
+- Set `allowFreeText: false` on a `tag` column to hide free-text entry and allow saving only listed values.
+- Set `allowFreeText: false` on a `multiple tags` column to hide custom tag entry and restrict edits to the resolved option list.
 
 ### `theme`
 

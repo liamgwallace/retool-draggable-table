@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconArrowBackUp, IconArrowDownBar, IconDeviceFloppy, IconRowInsertBottom, IconRowInsertTop } from '@tabler/icons-react';
 import type { DraggableTableProps, RowData, SelectedCell, TableColumn, TableModel } from '../../types';
-import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, getEmptyDisplayValue, hexToRgba, initials, isDisplayEmptyValue, isEditableFormat, markdownToHtml, moveKeys } from '../../lib/tableUtils';
+import { DEFAULT_THEME, buildReorderChangeset, chipColor, chipTextColor, cloneRows, createRowKey, extractTagValues, fontFamilyValue, fontSizeValue, fontWeightValue, formatCellText, getEmptyDisplayValue, hexToRgba, initials, isDisplayEmptyValue, isEditableFormat, markdownToHtml, moveKeys, resolveTagOptions } from '../../lib/tableUtils';
 import styles from './DraggableTable.module.css';
 
 type DragState = {
@@ -71,12 +71,16 @@ const moveGroupLabel = (orderedLabels: string[], movingLabel: string, targetLabe
 
 const isTextAreaFormat = (format?: string) => new Set(['multiline string', 'markdown', 'html']).has((format ?? 'string').toLowerCase());
 
-const validateInputValue = (value: string, column: TableColumn) => {
+const validateInputValue = (value: string, column: TableColumn, options: string[] = []) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (format === 'number' || format === 'progress') {
     if (value === '') return null;
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return 'Enter a valid number.';
+  }
+  if (format === 'tag' && column.allowFreeText === false) {
+    const nextValue = extractTagValues(value, column.format)[0];
+    if (nextValue && !options.includes(nextValue)) return 'Select one of the listed values.';
   }
   return null;
 };
@@ -110,7 +114,7 @@ const parseInputValue = (value: string, column: TableColumn) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (format === 'number' || format === 'progress') return value === '' ? '' : Number(value);
   if (format === 'boolean') return value === 'true';
-  if (format === 'multiple tags') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  if (format === 'multiple tags') return extractTagValues(value, column.format);
   return value;
 };
 
@@ -160,6 +164,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   columns,
   columnOrdering,
   groupByColumns = [],
+  tagOptionsSources = {},
   allowCrossGroupDrag = false,
   multiSelectEnabled = false,
   editable = true,
@@ -274,6 +279,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
   }, [allColumns, rowsByKey]);
 
   const orderedRows = useMemo<RenderRow[]>(() => orderedKeys.map((key) => ({ __key: key, ...(rowsByKey[key] ?? {}) })), [orderedKeys, rowsByKey]);
+  const tagOptionsByColumn = useMemo(() => new Map(allColumns.map((column) => [column.sourceKey, resolveTagOptions(column, Object.values(rowsByKey), tagOptionsSources)])), [allColumns, rowsByKey, tagOptionsSources]);
   const groupedRows = useMemo<GroupNode[]>(() => {
     if (!groupByColumns.length) return [];
     return buildGroupedTree(orderedRows, groupByColumns, groupOrders);
@@ -551,7 +557,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     if (!editable || disableEdits || loading || internalLoading) return;
     const column = allColumns.find((item) => item.sourceKey === field);
     if (!column) return;
-    const validationError = validateInputValue(rawValue, column);
+    const validationError = validateInputValue(rawValue, column, tagOptionsByColumn.get(field) ?? []);
     if (validationError) {
       setEditorError(validationError);
       return false;
@@ -576,15 +582,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     onChangeCell?.(cell);
   };
 
-  const availableOptionsForColumn = (column: TableColumn) => {
-    const values = Object.values(rowsByKey).flatMap((row) => {
-      const value = row[column.sourceKey];
-      if (Array.isArray(value)) return value.map(String);
-      if (value === null || value === undefined || value === '') return [];
-      return [String(value)];
-    });
-    return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
-  };
+  const availableOptionsForColumn = (column: TableColumn) => tagOptionsByColumn.get(column.sourceKey) ?? [];
 
   const openEditor = (rowKey: string, column: TableColumn, value: unknown, rect: DOMRect, point: { x: number; y: number }) => {
     const format = (column.format ?? 'string').toLowerCase();
@@ -593,7 +591,7 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
     setEditorMultiText('');
     setEditorError(null);
     if (format === 'multiple tags') {
-      setEditorSelections(Array.isArray(value) ? value.map(String) : []);
+      setEditorSelections(extractTagValues(value, column.format));
       setEditorText('');
       return;
     }
@@ -612,6 +610,12 @@ export const DraggableTable: React.FC<DraggableTableProps> = ({
 
   const commitArrayEditor = (nextValue: string[]) => {
     if (!activeEditor) return;
+    const activeOptions = activeColumn ? availableOptionsForColumn(activeColumn) : [];
+    if (activeColumn?.format?.toLowerCase() === 'multiple tags' && activeColumn.allowFreeText === false && nextValue.some((item) => !activeOptions.includes(item))) {
+      setEditorError('Select only listed values.');
+      return;
+    }
+    setEditorError(null);
     updateArrayCell(activeEditor.rowKey, activeEditor.columnKey, nextValue);
   };
 
@@ -989,13 +993,22 @@ const EditorPopover: React.FC<{
   onClose: () => void;
 }> = ({ column, value, text, editorText, editorMultiText, editorSelections, editorError, options, onChangeText, onChangeMultiText, onChangeSelections, onCommitText, onCommitLive, onCommitArray, onClose }) => {
   const format = (column.format ?? 'string').toLowerCase();
-  const tagOptions = Array.from(new Set([...(Array.isArray(value) ? value.map(String) : []), ...options, text].flatMap((item) => String(item).split(',').map((entry) => entry.trim()).filter(Boolean))));
+  const allowFreeText = column.allowFreeText !== false;
   const renderEditorFooter = (hint?: string) => (
     <div className={styles.editorFooter}>
       <div className={styles.editorHint}>{hint ?? ''}</div>
       <div className={styles.editorActions}>
         <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
         <button type="button" className={`${styles.button} ${styles.primaryButton}`} onClick={() => onCommitText(editorText)}>Save</button>
+      </div>
+    </div>
+  );
+
+  const renderCancelFooter = (hint?: string) => (
+    <div className={styles.editorFooter}>
+      <div className={styles.editorHint}>{hint ?? ''}</div>
+      <div className={styles.editorActions}>
+        <button type="button" className={styles.button} onClick={onClose}>Cancel</button>
       </div>
     </div>
   );
@@ -1065,10 +1078,9 @@ const EditorPopover: React.FC<{
 
   if (format === 'multiple tags') {
     const tags = editorSelections;
-    const orderedTagOptions = Array.from(new Set([...options, ...tags, ...text.split(',').map((item) => item.trim()).filter(Boolean)]));
     return (
       <>
-        <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
+        {allowFreeText ? <input className={styles.editorInput} value={editorMultiText} placeholder="Add tag" onChange={(event) => onChangeMultiText(event.target.value)} onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
             const next = editorMultiText.trim();
@@ -1079,9 +1091,9 @@ const EditorPopover: React.FC<{
             onChangeMultiText('');
           }
           if (event.key === 'Escape') onClose();
-        }} autoFocus />
+        }} autoFocus /> : null}
         <div className={styles.editorOptionList}>
-          {orderedTagOptions.map((option) => {
+          {options.map((option) => {
             const selected = tags.includes(option);
             return <button key={option} type="button" className={`${styles.editorOption} ${selected ? styles.editorOptionSelected : ''}`} onClick={() => {
               const next = selected ? tags.filter((item) => item !== option) : [...tags, option];
@@ -1090,6 +1102,8 @@ const EditorPopover: React.FC<{
             }}><span className={styles.editorCheckboxRow}><span className={styles.booleanCheckbox} data-checked={selected}><span className={styles.checkboxUi} aria-hidden="true" /></span><span>{option}</span></span></button>;
           })}
         </div>
+        {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
+        {!allowFreeText ? renderCancelFooter('Select from the listed values') : null}
       </>
     );
   }
@@ -1125,12 +1139,14 @@ const EditorPopover: React.FC<{
   if (format === 'tag') {
     return (
       <>
-        {renderSingleLineEditor(undefined, 'Set value')}
+        {allowFreeText ? renderSingleLineEditor(undefined, 'Set value') : null}
         <div className={styles.editorOptionList}>
-          {tagOptions.map((option) => (
+          {options.map((option) => (
             <button key={option} type="button" className={`${styles.editorOption} ${editorText === option ? styles.editorOptionSelected : ''}`} onClick={() => onCommitText(option)}>{option}</button>
           ))}
         </div>
+        {editorError ? <div className={styles.editorError}>{editorError}</div> : null}
+        {!allowFreeText ? renderCancelFooter('Select from the listed values') : null}
       </>
     );
   }

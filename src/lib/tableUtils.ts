@@ -182,6 +182,30 @@ export const isDisplayEmptyValue = (value: unknown) => value === null || value =
 
 export const getEmptyDisplayValue = (column: TableColumn) => column.emptyDisplayValue ?? 'Enter value';
 
+export const normalizeTagOptions = (values: unknown[]): string[] => Array.from(new Set(values.flatMap((value) => {
+  if (Array.isArray(value)) return normalizeTagOptions(value);
+  if (value === null || value === undefined) return [];
+  const normalized = String(value).trim();
+  return normalized ? [normalized] : [];
+})));
+
+export const extractTagValues = (value: unknown, format: TableColumn['format'] = 'tag'): string[] => {
+  if (Array.isArray(value)) return normalizeTagOptions(value);
+  if (value === null || value === undefined || value === '') return [];
+  if ((format ?? 'tag').toLowerCase() === 'multiple tags') return normalizeTagOptions(String(value).split(','));
+  return normalizeTagOptions([value]);
+};
+
+export const resolveTagOptions = (column: TableColumn, rows: RowData[], tagOptionsSources: Record<string, string[]> = {}): string[] => {
+  const format = (column.format ?? 'string').toLowerCase();
+  if (format !== 'tag' && format !== 'multiple tags') return [];
+  if (Array.isArray(column.tagOptions)) return normalizeTagOptions(column.tagOptions);
+  if (column.tagOptionsSource && Array.isArray(tagOptionsSources[column.tagOptionsSource])) {
+    return normalizeTagOptions(tagOptionsSources[column.tagOptionsSource]!);
+  }
+  return normalizeTagOptions(rows.flatMap((row) => extractTagValues(row[column.sourceKey], column.format)));
+};
+
 export const formatCellText = (value: unknown, column: TableColumn) => {
   const format = (column.format ?? 'string').toLowerCase();
   if (value === null || value === undefined) return '';
