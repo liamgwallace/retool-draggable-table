@@ -28,6 +28,11 @@ export interface TableColumn {
   currencyCode?: string;
   description?: string;
   colorSeed?: string;
+  tagOptions?: string[];
+  tagOptionsSource?: string;
+  allowFreeText?: boolean;
+  allowNull?: boolean;
+  emptyDisplayValue?: string;
 }
 
 export interface FontToken {
@@ -105,6 +110,7 @@ export interface DraggableTableProps {
   columns?: TableColumn[];
   columnOrdering?: string[];
   groupByColumns?: string[];
+  tagOptionsSources?: Record<string, string[]>;
   allowGroupReorder?: boolean;
   allowCrossGroupDrag?: boolean;
   multiSelectEnabled?: boolean;
@@ -123,6 +129,7 @@ export interface DraggableTableProps {
   disableSave?: boolean;
   disableReorder?: boolean;
   disableAddRow?: boolean;
+  showDisplayIndexColumn?: boolean;
   emptyMessage?: string;
   title?: string;
   onModelChange?: (model: TableModel) => void;

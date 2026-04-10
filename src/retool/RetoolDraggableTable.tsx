@@ -51,6 +51,7 @@ const useTableState = () => {
   const [columnsJson] = Retool.useStateArray({ name: 'columnsJson', initialValue: [{ sourceKey: 'user', label: 'User', format: 'avatar', editable: true, width: 260 }, { sourceKey: 'department', label: 'Department', format: 'string', editable: true, width: 160 }, { sourceKey: 'email', label: 'Email', format: 'email', editable: true, width: 260 }, { sourceKey: 'role', label: 'Role', format: 'tag', editable: true, width: 120 }, { sourceKey: 'enabled', label: 'Enabled', format: 'boolean', editable: true, width: 100, align: 'center' }, { sourceKey: 'employeeNumber', label: 'Employee #', format: 'number', editable: true, width: 120, align: 'right' }, { sourceKey: 'createdAt', label: 'Created at', format: 'date', editable: true, width: 140 }, { sourceKey: 'lastLoginAt', label: 'Last login', format: 'date time', editable: true, width: 180 }, { sourceKey: 'teams', label: 'Teams', format: 'multiple tags', editable: true, width: 260 }, { sourceKey: 'website', label: 'Website', format: 'link', editable: true, width: 240 }, { sourceKey: 'bioHtml', label: 'Bio HTML', format: 'html', editable: true, width: 320 }, { sourceKey: 'notesMarkdown', label: 'Notes', format: 'markdown', editable: true, width: 320 }, { sourceKey: 'progress', label: 'Progress', format: 'progress', editable: true, width: 180, align: 'center' }, { sourceKey: 'internalNotes', label: 'Internal notes', format: 'multiline string', editable: true, hidden: true, resizable: false }], inspector: 'text', label: 'Columns JSON' });
   const [columnOrderingJson] = Retool.useStateArray({ name: 'columnOrderingJson', initialValue: ['user', 'department', 'email', 'role', 'enabled', 'employeeNumber', 'createdAt', 'lastLoginAt', 'teams', 'website', 'bioHtml', 'notesMarkdown', 'progress', 'internalNotes'], inspector: 'text', label: 'Column Ordering JSON' });
   const [groupByColumnsJson] = Retool.useStateArray({ name: 'groupByColumnsJson', initialValue: [], inspector: 'text', label: 'Group By JSON' });
+  const [tagOptionsSources] = Retool.useStateObject({ name: 'tagOptionsSources', initialValue: {}, inspector: 'text', label: 'Tag Options Sources' });
   const [allowGroupReorder] = Retool.useStateBoolean({ name: 'allowGroupReorder', initialValue: false, inspector: 'checkbox', label: 'Allow Group Reorder' });
   const [allowCrossGroupDrag] = Retool.useStateBoolean({ name: 'allowCrossGroupDrag', initialValue: true, inspector: 'checkbox', label: 'Allow Cross Group Drag' });
   const [multiSelectEnabled] = Retool.useStateBoolean({ name: 'multiSelectEnabled', initialValue: true, inspector: 'checkbox', label: 'Multi Select' });
@@ -69,6 +70,7 @@ const useTableState = () => {
   const [disableSave] = Retool.useStateBoolean({ name: 'disableSave', initialValue: false, inspector: 'checkbox', label: 'Disable Save' });
   const [disableReorder] = Retool.useStateBoolean({ name: 'disableReorder', initialValue: false, inspector: 'checkbox', label: 'Disable Reorder' });
   const [disableAddRow] = Retool.useStateBoolean({ name: 'disableAddRow', initialValue: false, inspector: 'checkbox', label: 'Disable Add Row' });
+  const [showDisplayIndexColumn] = Retool.useStateBoolean({ name: 'showDisplayIndexColumn', initialValue: false, inspector: 'checkbox', label: 'Show Display Index Column' });
   const [title] = Retool.useStateString({ name: 'title', initialValue: 'Draggable Table', inspector: 'text', label: 'Title' });
   const [emptyMessage] = Retool.useStateString({ name: 'emptyMessage', initialValue: 'No rows to display', inspector: 'text', label: 'Empty Message' });
 
@@ -86,6 +88,7 @@ const useTableState = () => {
       columns: normalizeArrayInput<TableColumn>(columnsJson),
       columnOrdering: normalizeArrayInput<string>(columnOrderingJson),
       groupByColumns: normalizeArrayInput<string>(groupByColumnsJson),
+      tagOptionsSources: normalizeObjectInput<Record<string, string[]>>(tagOptionsSources),
       allowGroupReorder,
       allowCrossGroupDrag,
       multiSelectEnabled,
@@ -104,6 +107,7 @@ const useTableState = () => {
       disableSave,
       disableReorder,
       disableAddRow,
+      showDisplayIndexColumn,
       title,
       emptyMessage,
     },

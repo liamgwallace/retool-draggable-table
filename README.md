@@ -218,6 +218,11 @@ Supported column properties:
 | `currencyCode` | No | Reserved in the type, not currently used by rendering. |
 | `description` | No | Shown as the header tooltip. |
 | `colorSeed` | No | Reserved in the type, not currently used by rendering. |
+| `tagOptions` | No | Optional inline list of allowed or suggested tag values for `tag` and `multiple tags`. |
+| `tagOptionsSource` | No | Optional key into top-level `tagOptionsSources` for shared tag lists. |
+| `allowFreeText` | No | Reserved contract flag for tag editors. Default behavior remains permissive when omitted or `true`. |
+| `allowNull` | No | Reserved contract flag for nullable `tag`, `multiple tags`, `date`, and `date time` editors. Default is off. |
+| `emptyDisplayValue` | No | Reserved per-column empty-cell placeholder text. Planned default is `Enter value`. |
 
 Supported `format` values:
 
@@ -247,6 +252,17 @@ Notes:
 - `markdown` is rendered to HTML, so headings, lists, links, emphasis, and code blocks display in the cell.
 - `html` renders the cell value as HTML.
 - `progress` expects a numeric value and uses a 0-100 slider editor.
+- The new `tagOptions`, `tagOptionsSource`, `allowFreeText`, `allowNull`, and `emptyDisplayValue` fields are part of the public config contract now. Some of their editor and rendering behavior lands in later implementation stages.
+
+Example with the new tag-related and empty-state fields:
+
+```json
+[
+  { "sourceKey": "role", "label": "Role", "format": "tag", "editable": true, "tagOptions": ["Admin", "Editor", "Viewer"], "allowFreeText": false },
+  { "sourceKey": "teams", "label": "Teams", "format": "multiple tags", "editable": true, "tagOptionsSource": "teamTags", "allowFreeText": true, "allowNull": false },
+  { "sourceKey": "createdAt", "label": "Created at", "format": "date", "editable": true, "allowNull": true, "emptyDisplayValue": "Enter value" }
+]
+```
 
 Example with a hidden field and tooltip:
 
@@ -347,6 +363,39 @@ Important behavior:
 - If `allowCrossGroupDrag` is `false`, rows cannot be dropped into a different group.
 - Empty nested groups stay visible as drop targets after their rows have been moved out.
 - When adding a new row inside a grouped table, the new row inherits the selected row's group path when exactly one row is selected.
+
+### `tagOptionsSources`
+
+`tagOptionsSources` is an object of reusable tag lists keyed by source name.
+
+Default value:
+
+```json
+{}
+```
+
+Example:
+
+```json
+{
+  "roleTags": ["Admin", "Editor", "Viewer"],
+  "teamTags": ["Design", "Infrastructure", "Product", "Sales"]
+}
+```
+
+Use it from `columnsJson` with `tagOptionsSource`:
+
+```json
+[
+  { "sourceKey": "role", "format": "tag", "tagOptionsSource": "roleTags", "allowFreeText": false },
+  { "sourceKey": "teams", "format": "multiple tags", "tagOptionsSource": "teamTags" }
+]
+```
+
+Notes:
+
+- This is a shared config surface for `tag` and `multiple tags` columns.
+- Stage 1 adds the input and type contract only. Full tag-option resolution behavior is implemented later.
 
 ### `theme`
 
@@ -453,6 +502,7 @@ This object is spread directly into the outer component style.
 | --- | --- |
 | `primaryKey` | Text input for the stable unique field used as row identity. Default: `id`. |
 | `indexColumn` | Text input for the optional saved-order field. Leave blank to disable. |
+| `tagOptionsSources` | Shared named tag lists for columns that use `tagOptionsSource`. Default: `{}`. |
 | `allowGroupReorder` | Enables drag handles on group headers, including nested groups. |
 | `allowCrossGroupDrag` | Lets rows move between groups and updates grouped fields. |
 | `multiSelectEnabled` | Enables checkboxes and multi-row block movement. |
@@ -469,6 +519,7 @@ This object is spread directly into the outer component style.
 | `disableSave` | Disables save actions. |
 | `disableReorder` | Disables row drag-and-drop. |
 | `disableAddRow` | Removes add-row buttons. |
+| `showDisplayIndexColumn` | Reserved toggle for the leading display-index column. Default: `false`. Behavior change lands in a later stage. |
 | `title` | Header title text. |
 | `emptyMessage` | Empty-state message when there are no rows. |
 

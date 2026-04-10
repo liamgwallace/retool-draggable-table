@@ -232,6 +232,14 @@
           "type": "array"
         },
         {
+          "name": "tagOptionsSources",
+          "initialValue": {},
+          "inspector": "text",
+          "label": "Tag Options Sources",
+          "description": "Optional shared tag lists keyed by source name for tag and multiple-tags columns.",
+          "type": "object"
+        },
+        {
           "name": "primaryKey",
           "initialValue": "id",
           "inspector": "text",
@@ -362,6 +370,14 @@
           "initialValue": false,
           "inspector": "checkbox",
           "label": "Disable Add Row",
+          "type": "boolean"
+        },
+        {
+          "name": "showDisplayIndexColumn",
+          "initialValue": false,
+          "inspector": "checkbox",
+          "label": "Show Display Index Column",
+          "description": "Reserved for the optional leading display-position column. Default is off.",
           "type": "boolean"
         },
         {
