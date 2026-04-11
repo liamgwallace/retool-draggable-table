@@ -6,6 +6,16 @@
 
 ![Basic table preview](docs/screenshots/table_view.jpg)
 
+## Demo videos
+
+**Drag-and-drop features**
+
+<video src="docs/videos/drad functions.mp4" controls width="100%"></video>
+
+**Cell types**
+
+<video src="docs/videos/cell types.mp4" controls width="100%"></video>
+
 ## What it does
 
 - Reorders rows with drag handles.
