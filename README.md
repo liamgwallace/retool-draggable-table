@@ -10,11 +10,11 @@
 
 **Drag-and-drop features**
 
-<video src="docs/videos/drad functions.mp4" controls width="100%"></video>
+![Drag-and-drop demo](docs/videos/drag-functions.gif)
 
 **Cell types**
 
-<video src="docs/videos/cell types.mp4" controls width="100%"></video>
+![Cell types demo](docs/videos/cell-types.gif)
 
 ## What it does
 
